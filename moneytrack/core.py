@@ -6,7 +6,7 @@ import numpy as np
 import logging
 import glob
 import os
-import datetime
+from datetime import datetime
 from functools import reduce
 
 from typing import Optional, Union, List, Iterable, Tuple, Dict
@@ -66,16 +66,16 @@ class DailyAccountHistory:
 
         self.df = df.sort_index(ascending=True)
 
-    def get_df(self, start_date: Optional[pd.datetime] = None, end_date: Optional[pd.datetime] = None,
+    def get_df(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
                inc_interest_rate = False, inc_cum_interest_rate: bool = False, as_ayr: bool = True,
                as_prcnt: bool = True) -> pd.DataFrame:
         """
         Get pandas DataFrame containing the daily account history. Gives the account balance at the end of the day,
         as well as transfers into/from the account, and any interest payments.
 
-        :param start_date: pd.datetime
+        :param start_date: datetime
             Start the daily summary on this date
-        :param end_date: pd.datetime
+        :param end_date: datetime
             End the daily summary on this date
         :param inc_interest_rate: bool
             Include a column containing the interest rate
@@ -94,8 +94,8 @@ class DailyAccountHistory:
         """
 
         # Check that the inputs are valid
-        assert_type(start_date, pd.datetime, optional=True)
-        assert_type(end_date, pd.datetime, optional=True)
+        assert_type(start_date, datetime, optional=True)
+        assert_type(end_date, datetime, optional=True)
 
         df = self.df.copy(deep=False)
 
@@ -126,7 +126,7 @@ class DailyAccountHistory:
         """The account is a zombie if it has always had a balance of zero"""
         return (self.get_daily_balance(**kwargs) == 0.0).values.all()
 
-    def date_range(self) -> Tuple[pd.datetime, pd.datetime]:
+    def date_range(self) -> Tuple[datetime, datetime]:
         """Return a tuple containing the min/max date"""
         df = self.get_df()
         return df.index.min(), df.index.max()
@@ -183,7 +183,7 @@ class DailyAccountHistory:
         return cls._interest_rate_conversions(adr, as_ayr, as_prcnt)
 
     @classmethod
-    def _calc_avg_interest_rate(cls, df: pd.DataFrame, start_date: pd.datetime, end_date: pd.datetime) -> float:
+    def _calc_avg_interest_rate(cls, df: pd.DataFrame, start_date: datetime, end_date: datetime) -> float:
         """
         Calculate the average interest rate between two dates.
 
@@ -216,15 +216,15 @@ class DailyAccountHistory:
         return calc_avg_interest_rate(start_bal=start_bal, end_bal=end_bal, num_days=num_days,
                                       trans_days=trans_days, trans_amts=trans_amts)
 
-    def calc_avg_interest_rate(self, start_date: Optional[pd.datetime], end_date: Optional[pd.datetime],
+    def calc_avg_interest_rate(self, start_date: Optional[datetime], end_date: Optional[datetime],
                                as_ayr: bool = True, as_prcnt: bool = True) -> Optional[float]:
         """
         Compute the average interest rate over a specified date period.
 
-        :param start_date: Optional[pd.datetime]
+        :param start_date: Optional[datetime]
             The first date to consider when computing the average interest rate. If not provided, use
             the first date in the DailyAccountHistory
-        :param end_date: Optional[pd.datetime]
+        :param end_date: Optional[datetime]
             The last date to consider when computing the average interest rate. If not provided, use
             the final date in the DailyAccountHistory
         :param as_ayr: bool
@@ -234,8 +234,8 @@ class DailyAccountHistory:
         :return: Optional[float]
             The average interest rate over the time period. If it is not possible to compute, None is returned.
         """
-        assert_type(start_date, pd.datetime, optional=True)
-        assert_type(end_date, pd.datetime, optional=True)
+        assert_type(start_date, datetime, optional=True)
+        assert_type(end_date, datetime, optional=True)
 
         df = self.df.copy(deep=False)
 
@@ -300,14 +300,14 @@ class DailyAccountHistory:
         return DailyAccountHistory(df)
 
     @classmethod
-    def _est_daily_balances_between_updates(cls, start_date: pd.datetime, end_date: pd.datetime, start_bal: float,
+    def _est_daily_balances_between_updates(cls, start_date: datetime, end_date: datetime, start_bal: float,
                                             end_bal: float, bal_transfers_df: pd.DataFrame) -> pd.DataFrame:
         """
         Estimate the daily balances between two balance updates, assuming a fixed rate of interest over the period.
 
-        :param start_date: pd.datetime
+        :param start_date: datetime
             The date of the first balance update
-        :param end_date: pd.datetime
+        :param end_date: datetime
             The date of the second balance update
         :param start_bal:
             The balance at the first update (at the end of the day, *after* any balance transfers)
@@ -326,8 +326,8 @@ class DailyAccountHistory:
         """
 
         # Check types (if incorrect, will raise a TypeError)
-        assert_type(start_date, pd.datetime)
-        assert_type(end_date, pd.datetime)
+        assert_type(start_date, datetime)
+        assert_type(end_date, datetime)
 
         # Check the input values
         if pd.isna(start_date) or pd.isna(end_date):
@@ -384,7 +384,7 @@ class DailyAccountHistory:
 
         # If there isn't any information, just return a DataFrame with today's date and zero balance
         if len(bal_updates_df) == 0 and len(bal_transfers_df) == 0:
-            today = pd.to_datetime(datetime.datetime.now().date())
+            today = pd.to_datetime(datetime.now().date())
             return pd.DataFrame(
                 [{DataFields.BALANCE: 0.0, DataFields.DATE: today}]
             ).set_index(DataFields.DATE)[DataFields.BALANCE]
@@ -634,16 +634,16 @@ class MoneyData:
 
     def get_daily_account_history_df(self, filters: Optional[Dict[str, Union[str, List[str]]]] = None,
                                      agg: Union[bool, str] = True, ret_agg_lvl: bool = False,
-                                     start_date: Optional[pd.datetime] = None, end_date: Optional[pd.datetime] = None,
+                                     start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
                                      inc_cum_interest_rate: bool = False, inc_interest_rate: bool = False,
                                      as_ayr: bool = True, as_prcnt: bool = True) -> \
             Union[pd.DataFrame, Tuple[pd.DataFrame, str]]:
         """
         Get a pandas DataFrame containing the daily account history for one or multiple accounts.
 
-        :param start_date: pd.datetime
+        :param start_date: datetime
             Start the daily summary on this date
-        :param end_date: pd.datetime
+        :param end_date: datetime
             End the daily summary on this date
         :param filters: Optional[Dict[str, Union[str, List[str]]]]
             Optionally provide filters to be applied e.g.
@@ -687,15 +687,15 @@ class MoneyData:
         df = pd.concat(dfs).reset_index().set_index([DataFields.DATE, agg_lvl])
         return (df, agg_lvl) if ret_agg_lvl else df
 
-    def interest_rate_breakdown(self, start_date: pd.datetime, end_date: pd.datetime, agg: bool = False,
+    def interest_rate_breakdown(self, start_date: datetime, end_date: datetime, agg: bool = False,
                                 filters = None, as_ayr: bool = True, as_prcnt: bool = True) -> pd.DataFrame:
         """
         Get the average interest rate for each account, or alternatively over each category specified by the
         aggregation level.
 
-        :param start_date: pd.datetime
+        :param start_date: datetime
             Start the daily summary on this date
-        :param end_date: pd.datetime
+        :param end_date: datetime
             End the daily summary on this date
         :param agg: bool
             Aggregate the results together
