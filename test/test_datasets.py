@@ -144,7 +144,7 @@ class DatasetTests(unittest.TestCase):
             }
         )
         self.assertTrue(compare_pd_df(df, exp, sort=True))
-        self.assertTrue(False)
+        # self.assertTrue(False)
 
 if __name__ == '__main__':
     unittest.main()
