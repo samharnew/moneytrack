@@ -1,0 +1,3 @@
+isa,account_key,account_nbr,account_typ,company,sort_code
+False,1,01234567,CURRENT,TSB,012345
+True,0,,EXTERNAL,EXTERNAL,
