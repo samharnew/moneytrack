@@ -15,9 +15,13 @@ setup(
     # get the version from the python tag
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
-
-    # install_requires=["docutils>=0.3"],
-
+    install_requires=[
+        "scipy>=1.4.1",
+        "numpy>=1.18.1",
+        "pandas>=0.25.3",
+        "matplotlib>=3.0.0",
+        "xlrd>=1.0.0",
+    ],
     # metadata to display on PyPI
     author="Sam Harnew",
     author_email="sam.harnew@gmail.com",
