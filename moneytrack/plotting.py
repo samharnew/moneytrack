@@ -1,14 +1,16 @@
 import matplotlib.pyplot as plt
-from enum import Enum
-from moneytrack import MoneyData, DataFields
-from typing import Union
 import numpy as np
 import pandas as pd
+
+from enum import Enum
+from typing import Union
 from datetime import datetime
 from pandas.plotting import register_matplotlib_converters
 
-register_matplotlib_converters()
+from .core import MoneyData
+from .datasets import DataFields
 
+register_matplotlib_converters()
 
 class MoneyPlot:
 

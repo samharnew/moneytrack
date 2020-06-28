@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
 import logging
-from typing import Union, Iterable, TypeVar
+from typing import Union, Iterable, TypeVar, Optional
 from enum import Enum
 from scipy.optimize import minimize_scalar
+
 log = logging.getLogger("utils")
 
 
@@ -88,14 +89,14 @@ def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts)
         result = minimize_scalar(lambda x: np.power(np.polyval(rec, x), 2.0), (0.0, 1.0, 1.1))
         if result.success == False:
             input_summary_str = ("start_bal = {start_bal}, end_bal = {end_bal}, num_days = {num_days}, "
-                + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
+                                 + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
             raise AssertionError("Could not find any roots: " + input_summary_str)
         interest_rate = result.x - 1.0
     else:
         real_pos_roots = calc_real_pos_roots(rec)
         if len(real_pos_roots) == 0:
             input_summary_str = ("start_bal = {start_bal}, end_bal = {end_bal}, num_days = {num_days}, "
-                + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
+                                 + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
 
             raise AssertionError("Could not find any roots: " + input_summary_str)
         interest_rate = real_pos_roots[0] - 1.0
@@ -206,7 +207,22 @@ def ayr_to_adr(ayr: Union[np.array, float]) -> Union[np.array, float]:
     :return: Union[np.array, float]
         The average daily interest rate
     """
-    return np.power(1.0 + ayr, 1.0/365.0) - 1.0
+    return np.power(1.0 + ayr, 1.0 / 365.0) - 1.0
+
+
+T = TypeVar('T')
+
+
+def coalesce(*args: Optional[T]) -> Optional[T]:
+    """
+    Return the first argument that is not None
+    :param args: Optional[T]
+    :return: Optional[T]
+    """
+    for arg in args:
+        if arg is not None:
+            return arg
+    return None
 
 
 class RangeOverlap(Enum):
@@ -257,7 +273,6 @@ def get_range_overlap_cat(reference_range: Iterable[float], comparison_range: It
 
 
 def get_range_overlap(range_1, range_2):
-
     reference_range, comparison_range = range_1, range_2
 
     overlap_type = get_range_overlap_cat(reference_range=reference_range, comparison_range=comparison_range)
