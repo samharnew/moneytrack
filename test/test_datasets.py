@@ -1,7 +1,9 @@
 import logging
-import unittest
-import pandas as pd
 import os
+import unittest
+
+import pandas as pd
+
 from moneytrack import Accounts, BalanceTransfers, BalanceUpdates, compare_pd_df, DataFields, SAMPLE_PATH
 
 logging.basicConfig(level=logging.DEBUG)
@@ -41,12 +43,11 @@ class DatasetTests(unittest.TestCase):
     def test_load_incorrect_csv(self):
         self.assertRaises((AssertionError), BalanceUpdates.from_csv, self.transfers_csv_path)
         self.assertRaises((AssertionError), BalanceUpdates.from_csv, self.accounts_csv_path)
-        self.assertRaises((AssertionError), BalanceTransfers.from_csv,  self.accounts_csv_path)
-        self.assertRaises((AssertionError), BalanceTransfers.from_csv,  self.updates_csv_path)
+        self.assertRaises((AssertionError), BalanceTransfers.from_csv, self.accounts_csv_path)
+        self.assertRaises((AssertionError), BalanceTransfers.from_csv, self.updates_csv_path)
         self.assertRaises((AssertionError), Accounts.from_csv, self.updates_csv_path)
         self.assertRaises((AssertionError), Accounts.from_csv, self.transfers_csv_path)
         self.assertRaises((IOError), Accounts.from_csv, "missing_file.csv")
-
 
     def test_save_load_accounts_excel(self):
         accounts_1 = Accounts.from_excel(self.excel_path, "accounts")
@@ -126,7 +127,6 @@ class DatasetTests(unittest.TestCase):
         self.assertTrue(compare_pd_df(df, exp, sort=True))
 
     def test_get_acc_transfers(self):
-
         bal_trans = BalanceTransfers.from_dict({
             DataFields.FROM_ACCOUNT_KEY: ["1", "2", "2"],
             DataFields.TO_ACCOUNT_KEY: ["2", "1", "3"],
@@ -144,6 +144,7 @@ class DatasetTests(unittest.TestCase):
             }
         )
         self.assertTrue(compare_pd_df(df, exp, sort=True))
+
 
 if __name__ == '__main__':
     unittest.main()

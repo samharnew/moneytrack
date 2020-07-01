@@ -1,8 +1,10 @@
-import unittest
-from moneytrack import MoneyData, MODULE_PATH
 import logging
+import unittest
+
+from moneytrack import MoneyData, MODULE_PATH
 
 logging.basicConfig(level=logging.DEBUG)
+
 
 class TestMoneyFrame(unittest.TestCase):
 

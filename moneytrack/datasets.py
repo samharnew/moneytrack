@@ -1,11 +1,11 @@
-import pandas as pd
 import logging
-
 from collections import OrderedDict
 from typing import Dict, Union, Iterable, Optional, List, Type
 
-from .utils import compare_pd_df
+import pandas as pd
+
 from .config import Config
+from .utils import compare_pd_df
 
 log = logging.getLogger("datasets")
 

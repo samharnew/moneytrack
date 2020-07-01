@@ -1,11 +1,14 @@
-import unittest
-import pandas as pd
-import numpy as np
-from moneytrack import BalanceTransfers, BalanceUpdates, MoneyFrame
 import logging
+import unittest
 from datetime import datetime
 
+import numpy as np
+import pandas as pd
+
+from moneytrack import BalanceTransfers, BalanceUpdates, MoneyFrame
+
 logging.basicConfig(level=logging.DEBUG)
+
 
 class TestCore(unittest.TestCase):
 
@@ -36,7 +39,6 @@ class TestCore(unittest.TestCase):
         np.testing.assert_array_almost_equal(exp["balance"].values, daily_bals.values)
 
     def test_from_fixed_rate(self):
-
         dah = MoneyFrame.from_fixed_rate(days=5, start_bal=100.0, ayr_prcnt=5.0)
         self.assertTrue(len(dah) == 5)
         self.assertTrue(dah.max_date() == datetime.today().date())
@@ -45,7 +47,6 @@ class TestCore(unittest.TestCase):
         self.assertTrue(len(dah) == 5)
 
     def test_slice(self):
-
         dah = MoneyFrame.from_fixed_rate(days=("2020-01-01", "2020-01-05"), start_bal=100.0, ayr_prcnt=5.0)
         self.assertTrue(len(dah[2]) == 1)
         self.assertTrue(len(dah[2:3]) == 1)
@@ -103,7 +104,8 @@ class TestCore(unittest.TestCase):
                                                      balance_updates=balance_updates, account_key="1")
         daily_bals = hist.get_daily_balance()
         exp = pd.DataFrame({
-            "date": pd.to_datetime(["2018-12-29", "2018-12-30", "2018-12-31", "2019-01-01", "2019-01-02","2019-01-03"]),
+            "date": pd.to_datetime(
+                ["2018-12-29", "2018-12-30", "2018-12-31", "2019-01-01", "2019-01-02", "2019-01-03"]),
             "balance": [0.0, 90.0, 90.0, 90.0, 90.0, 180.0],
         }).set_index("date")
 
@@ -164,8 +166,9 @@ class TestCore(unittest.TestCase):
         exp = pd.DataFrame({
             "date": pd.to_datetime(["2018-12-29", "2018-12-30", "2018-12-31", "2019-01-01", "2019-01-02",
                                     "2019-01-03", "2019-01-04", "2019-01-05"]),
-            "interest": [0.0,0.0, 4.868330, 10.0-4.868330, 1.689833, 193.408221-90.0-101.689833, 196.676496-193.408221,
-                         200.0-196.676496],
+            "interest": [0.0, 0.0, 4.868330, 10.0 - 4.868330, 1.689833, 193.408221 - 90.0 - 101.689833,
+                         196.676496 - 193.408221,
+                         200.0 - 196.676496],
         }).set_index("date")["interest"]
 
         hist = MoneyFrame.from_updates_and_transfers(balance_transfers=bal_trans,
@@ -180,7 +183,6 @@ class TestCore(unittest.TestCase):
         np.testing.assert_array_almost_equal(exp.values, daily_interest.values, 4)
 
     def test_daily_summary(self):
-
         bal_trans = BalanceTransfers.from_dict({
             "from_account_key": ["0", "0"],
             "to_account_key": ["1", "1"],
@@ -194,7 +196,8 @@ class TestCore(unittest.TestCase):
             "date": ["2019-01-01", "2019-01-05"],
         })
 
-        hist = MoneyFrame.from_updates_and_transfers(balance_transfers=bal_trans, balance_updates=balance_updates, account_key="1")
+        hist = MoneyFrame.from_updates_and_transfers(balance_transfers=bal_trans, balance_updates=balance_updates,
+                                                     account_key="1")
         print(hist.to_df())
 
 
