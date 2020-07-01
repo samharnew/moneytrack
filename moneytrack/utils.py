@@ -1,8 +1,9 @@
+import logging
+from enum import Enum
+from typing import Union, Iterable, TypeVar, Optional
+
 import numpy as np
 import pandas as pd
-import logging
-from typing import Union, Iterable, TypeVar, Optional
-from enum import Enum
 from scipy.optimize import minimize_scalar
 
 log = logging.getLogger("utils")

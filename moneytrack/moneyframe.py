@@ -1,10 +1,10 @@
+import logging
 from datetime import datetime, timedelta
 from functools import reduce
 from typing import Any, Optional, Tuple, Iterable, Union
 
 import numpy as np
 import pandas as pd
-import logging
 
 from .datasets import DataFields, BalanceUpdates, BalanceTransfers
 from .utils import coalesce, assert_type, adr_to_ayr, calc_avg_interest_rate, calc_daily_balances_w_transfers, \
@@ -140,7 +140,7 @@ class MoneyFrame:
         return len(self.df)
 
     def to_df(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
-              inc_interest_rate = False, inc_cum_interest_rate: bool = False, as_ayr: bool = True,
+              inc_interest_rate=False, inc_cum_interest_rate: bool = False, as_ayr: bool = True,
               as_prcnt: bool = True) -> pd.DataFrame:
         """
         Get pandas DataFrame containing the daily account history. Gives the account balance at the end of the day,
@@ -232,7 +232,7 @@ class MoneyFrame:
         :return: np.array
         """
         ir = adr_to_ayr(adr) if as_ayr else adr
-        ir = ir*100.0 if as_prcnt else ir
+        ir = ir * 100.0 if as_prcnt else ir
         return ir
 
     def _calc_interest_rate(self, as_ayr: bool = True, as_prcnt: bool = True) -> pd.Series:
@@ -246,7 +246,7 @@ class MoneyFrame:
         :return: pd.Series
             Daily interest rate. The Series is indexed by date
         """
-        adr = self.df[DataFields.INTEREST]/self.df[DataFields.BALANCE].shift(1)
+        adr = self.df[DataFields.INTEREST] / self.df[DataFields.BALANCE].shift(1)
         return self._interest_rate_conversions(adr, as_ayr, as_prcnt)
 
     @classmethod
@@ -446,9 +446,9 @@ class MoneyFrame:
         log.debug("Getting balance updates and transfers")
 
         # Get balance updates and transfers for the specified account_key
-        bal_updates_df = balance_updates.get_acc_updates(account_key=account_key)\
+        bal_updates_df = balance_updates.get_acc_updates(account_key=account_key) \
             .sort_values(DataFields.DATE, ascending=True)
-        bal_transfers_df = balance_transfers.get_acc_transfers(account_key=account_key)\
+        bal_transfers_df = balance_transfers.get_acc_transfers(account_key=account_key) \
             .sort_values(DataFields.DATE, ascending=True)
 
         # If there isn't any information, just return a DataFrame with today's date and zero balance
@@ -491,7 +491,7 @@ class MoneyFrame:
                 ].sum()
                 new_row = {
                     DataFields.DATE: last_bal_trans_date,
-                    DataFields.BALANCE: last_update_amt+tot_transfers
+                    DataFields.BALANCE: last_update_amt + tot_transfers
                 }
                 bal_updates_df = bal_updates_df.append(pd.DataFrame([new_row]), ignore_index=True)
                 bal_updates_df.sort_values(DataFields.DATE, ascending=True, inplace=True)
@@ -621,7 +621,7 @@ class MoneyFrame:
         """
         if isinstance(days, int):
             end_date = datetime.today().date()
-            start_date = end_date - timedelta(days=days-1)
+            start_date = end_date - timedelta(days=days - 1)
         elif isinstance(days, tuple) and len(days) == 2:
             start_date, end_date = days
         else:
@@ -632,7 +632,7 @@ class MoneyFrame:
         num_days = len(dates)
 
         # Determine the balance each day, assuming fixed interest rate
-        adr = ayr_to_adr(ayr_prcnt*0.01)
+        adr = ayr_to_adr(ayr_prcnt * 0.01)
         balances = calc_daily_balances_w_transfers(start_bal=start_bal, num_days=num_days, daily_rate=adr)
 
         # Return MoneyFrame

@@ -1,10 +1,10 @@
+from datetime import datetime
+from enum import Enum
+from typing import Union
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from enum import Enum
-from typing import Union
-from datetime import datetime
 from pandas.plotting import register_matplotlib_converters
 
 from .core import MoneyData
@@ -12,8 +12,8 @@ from .datasets import DataFields
 
 register_matplotlib_converters()
 
-class MoneyPlot:
 
+class MoneyPlot:
     class Metric(Enum):
         Balance = 1
         Interest = 2
@@ -24,7 +24,7 @@ class MoneyPlot:
         self.money_data = money_data
 
     @staticmethod
-    def get_figure(ax = None):
+    def get_figure(ax=None):
         if ax is None:
             f, ax = plt.subplots()
         else:
@@ -39,7 +39,7 @@ class MoneyPlot:
             start_date: Union[str, datetime, None] = None,
             end_date: Union[str, datetime, None] = None,
             cumulative: bool = False,
-            filters = None,
+            filters=None,
             **plt_kwargs
     ):
 
@@ -56,7 +56,9 @@ class MoneyPlot:
         f, ax = MoneyPlot.get_figure(ax=ax)
         ax.set_xlabel("Date")
 
-        def cum_func(x): return np.cumsum(x)
+        def cum_func(x):
+            return np.cumsum(x)
+
         if metric == MoneyPlot.Metric.Balance:
             ax.set_ylabel("Balance [£]")
             col_name = DataFields.BALANCE
@@ -75,7 +77,9 @@ class MoneyPlot:
             title = "Interest Rate"
             if cumulative:
                 col_name = DataFields.CUM_INTEREST_RATE
-                def cum_func(x): return x
+
+                def cum_func(x):
+                    return x
             else:
                 col_name = DataFields.INTEREST_RATE
         else:
@@ -102,14 +106,14 @@ class MoneyPlot:
         return f, ax
 
     def plot_period_breakdown(
-        self,
-        metric: Metric,
-        start_date: str,
-        end_date: str,
-        ax = None,
-        agg: bool = False,
-        filters = None,
-        plot_average: bool = True
+            self,
+            metric: Metric,
+            start_date: str,
+            end_date: str,
+            ax=None,
+            agg: bool = False,
+            filters=None,
+            plot_average: bool = True
     ):
 
         if metric == MoneyPlot.Metric.InterestRate:
@@ -145,7 +149,7 @@ class MoneyPlot:
 
         if plot_average and col == DataFields.INTEREST_RATE and agg is not True:
             rate = self.money_data.interest_rate_breakdown(
-                filters = filters, agg=True,
+                filters=filters, agg=True,
                 start_date=pd.to_datetime(start_date),
                 end_date=pd.to_datetime(end_date),
                 as_prcnt=True, as_ayr=True
@@ -153,14 +157,14 @@ class MoneyPlot:
 
             ax.axhline(rate, color='black', ls=':', lw=1.5)
             x_max = ax.get_xlim()[1]
-            ax.annotate('{}%'.format(round(rate,2)),
+            ax.annotate('{}%'.format(round(rate, 2)),
                         xy=(x_max, rate),
                         xytext=(3, 0),  # 3 points vertical offset
                         textcoords="offset points",
                         ha='left', va='center', fontweight='bold')
 
         ax.set_title("Average interest rates from {} to {} inclusive".format(start_date, end_date))
-        ax.set_ylim([min_y-range_y*0.15, max_y+range_y*0.15])
+        ax.set_ylim([min_y - range_y * 0.15, max_y + range_y * 0.15])
         ax.axhline(0.0, color='black', ls='-', lw=1)
 
         def label_bars(bars, ax):

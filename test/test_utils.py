@@ -1,7 +1,10 @@
 import unittest
-from moneytrack import *
+
 import numpy as np
 import pandas as pd
+
+from moneytrack import *
+
 
 class TestUtils(unittest.TestCase):
     def test_calc_real_pos_roots(self):
@@ -34,18 +37,18 @@ class TestUtils(unittest.TestCase):
 
     def test_calc_avg_interest_rate_edge_case_1(self):
         mult = calc_avg_interest_rate(start_bal=0.0, end_bal=2.00, num_days=3, trans_days=[1], trans_amts=[2.0]) + 1
-        self.assertAlmostEqual(2.0, mult*mult*2.0, 7)
+        self.assertAlmostEqual(2.0, mult * mult * 2.0, 7)
         mult = calc_avg_interest_rate(start_bal=0.0, end_bal=2.00, num_days=3, trans_days=[0], trans_amts=[2.0]) + 1.0
-        self.assertAlmostEqual(2.0, mult*mult*mult*2.0, 7)
+        self.assertAlmostEqual(2.0, mult * mult * mult * 2.0, 7)
         mult = calc_avg_interest_rate(start_bal=0.0, end_bal=2.05, num_days=3, trans_days=[1], trans_amts=[2.0]) + 1
-        self.assertAlmostEqual(2.05, mult*mult*2.00, 7)
+        self.assertAlmostEqual(2.05, mult * mult * 2.00, 7)
         mult = calc_avg_interest_rate(start_bal=0.0, end_bal=2.05, num_days=3, trans_days=np.array([0]),
                                       trans_amts=np.array([2.0])) + 1.0
-        self.assertAlmostEqual(2.05, mult*mult*mult*2.00, 7)
+        self.assertAlmostEqual(2.05, mult * mult * mult * 2.00, 7)
 
     def test_calc_avg_interest_rate_edge_case_2(self):
         mult = calc_avg_interest_rate(start_bal=1.0, end_bal=2.00, num_days=3, trans_days=[3], trans_amts=[1.0]) + 1
-        self.assertAlmostEqual(2.0, 1.0*mult*mult*mult + 1.0, 7)
+        self.assertAlmostEqual(2.0, 1.0 * mult * mult * mult + 1.0, 7)
 
     def test_calc_daily_balances(self):
         r = 1.01
@@ -76,12 +79,10 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(True)
 
     def test_calc_daily_balances_w_transfers_no_interest(self):
-
-        r=1.0
+        r = 1.0
         daily_bals = calc_daily_balances_w_transfers(start_bal=0.0, daily_rate=r - 1.0, num_days=4, trans_amts=[1.0],
                                                      trans_days=[0])
-        np.testing.assert_array_almost_equal(daily_bals, [1.0]*4, 7)
-
+        np.testing.assert_array_almost_equal(daily_bals, [1.0] * 4, 7)
 
     def test_dates_between(self):
         start_date = pd.to_datetime("2020-01-01")
@@ -96,7 +97,6 @@ class TestUtils(unittest.TestCase):
         df_exp = pd.DataFrame({'a': [0, 0, 1, 1], 'b': [0, 1, 0, 1]})
         pd.testing.assert_frame_equal(df_exp, cross_join(df_a, df_b))
         self.assertTrue(len(df_a.columns) == 1)
-
 
 
 if __name__ == '__main__':

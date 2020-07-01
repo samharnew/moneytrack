@@ -1,10 +1,10 @@
-import pandas as pd
-import logging
 import glob
+import logging
 import os
-
 from datetime import datetime
 from typing import Optional, Union, List, Tuple, Dict
+
+import pandas as pd
 
 from .datasets import DataFields, Accounts, BalanceUpdates, BalanceTransfers, Config
 from .moneyframe import MoneyFrame
@@ -63,7 +63,7 @@ class MoneyData:
             for acc_key, acc_hist in self.daily_acc_hist_dict.items() if acc_key in acc_keys
         }
 
-    def aggregate_acc_hist(self, filters: Optional[Dict[str, Union[str, List[str]]]], agg: Union[bool, str] = True)\
+    def aggregate_acc_hist(self, filters: Optional[Dict[str, Union[str, List[str]]]], agg: Union[bool, str] = True) \
             -> Tuple[Dict[str, MoneyFrame], str]:
         """
         Aggregate the dictionary containing account histories. Can be aggregated by any column in the Accounts data
@@ -101,12 +101,12 @@ class MoneyData:
         df_acc = df_acc[[DataFields.ACCOUNT_KEY.upper(), agg.upper()]]
         df_acc = df_acc[df_acc[DataFields.ACCOUNT_KEY].isin(hist_dict.keys())]
         return {
-            agg_name: MoneyFrame.from_sum(
-                [acc_hist for acc_key, acc_hist in hist_dict.items()
-                 if acc_key in df_g[DataFields.ACCOUNT_KEY.upper()].values]
-            )
-            for agg_name, df_g in df_acc.groupby(agg.upper())
-        }, agg
+                   agg_name: MoneyFrame.from_sum(
+                       [acc_hist for acc_key, acc_hist in hist_dict.items()
+                        if acc_key in df_g[DataFields.ACCOUNT_KEY.upper()].values]
+                   )
+                   for agg_name, df_g in df_acc.groupby(agg.upper())
+               }, agg
 
     def get_daily_account_history_df(self, filters: Optional[Dict[str, Union[str, List[str]]]] = None,
                                      agg: Union[bool, str] = True, ret_agg_lvl: bool = False,
@@ -164,7 +164,7 @@ class MoneyData:
         return (df, agg_lvl) if ret_agg_lvl else df
 
     def interest_rate_breakdown(self, start_date: datetime, end_date: datetime, agg: bool = False,
-                                filters = None, as_ayr: bool = True, as_prcnt: bool = True) -> pd.DataFrame:
+                                filters=None, as_ayr: bool = True, as_prcnt: bool = True) -> pd.DataFrame:
         """
         Get the average interest rate for each account, or alternatively over each category specified by the
         aggregation level.
