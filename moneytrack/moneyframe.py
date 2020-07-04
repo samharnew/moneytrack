@@ -76,8 +76,9 @@ class MoneyFrame:
         assert df.isnull().values.any() == 0, "DataFrame contains missing values"
 
         # Check that the date index is complete
-        missing_dates = pd.date_range(df.index.min(), df.index.max()).difference(df.index)
-        assert len(missing_dates) == 0, "Daily history should contain all dates between the start and end date"
+        if len(df) > 0:
+            missing_dates = pd.date_range(df.index.min(), df.index.max()).difference(df.index)
+            assert len(missing_dates) == 0, "Daily history should contain all dates between the start and end date"
 
         self.df = df.sort_index(ascending=True)
 
@@ -115,29 +116,6 @@ class MoneyFrame:
             df = self.df.loc[start_date:end_date]
 
         return MoneyFrame(df)
-
-    def __getitem__(self, x) -> "MoneyFrame":
-
-        if isinstance(x, slice):
-            assert x.step is None, "step parameter is not accepted when slicing MoneyFrame"
-            if isinstance(coalesce(x.start, 0), int) and isinstance(coalesce(x.stop, -1), int):
-                start_ix, end_ix = coalesce(x.start, 0), coalesce(x.stop, -1)
-                dah = MoneyFrame(self.df.iloc[start_ix:end_ix])
-            else:
-                start_date = pd.to_datetime(coalesce(x.start, self.min_date()))
-                end_date = pd.to_datetime(coalesce(x.stop, self.max_date()))
-                assert start_date <= end_date, "Must have start_date <= end_date"
-                dah = self.get_slice(start_date, end_date, extrapolate=False)
-        elif isinstance(x, int):
-            dah = MoneyFrame(self.df.iloc[x:x + 1])
-        else:
-            date = pd.to_datetime(x)
-            dah = self.get_slice(date, date, extrapolate=False)
-
-        return dah
-
-    def __len__(self):
-        return len(self.df)
 
     def to_df(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
               inc_interest_rate=False, inc_cum_interest_rate: bool = False, as_ayr: bool = True,
@@ -286,7 +264,7 @@ class MoneyFrame:
         return calc_avg_interest_rate(start_bal=start_bal, end_bal=end_bal, num_days=num_days,
                                       trans_days=trans_days, trans_amts=trans_amts)
 
-    def calc_avg_interest_rate(self, start_date: Optional[datetime], end_date: Optional[datetime],
+    def calc_avg_interest_rate(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
                                as_ayr: bool = True, as_prcnt: bool = True) -> Optional[float]:
         """
         Compute the average interest rate over a specified date period.
@@ -638,3 +616,37 @@ class MoneyFrame:
         # Return MoneyFrame
         df = pd.DataFrame({DataFields.DATE: dates, DataFields.BALANCE: balances})
         return MoneyFrame(df)
+
+    @classmethod
+    def create_empty(cls):
+        return MoneyFrame(pd.DataFrame({DataFields.DATE: [], DataFields.BALANCE: []}))
+
+    def __add__(self, other):
+        return MoneyFrame.from_sum([self, other])
+
+    def __eq__(self, other):
+        return len(self) == len(other) and np.all(self.df.index == other.df.index) and \
+               np.allclose(self.df.values, other.df.values)
+
+    def __getitem__(self, x) -> "MoneyFrame":
+
+        if isinstance(x, slice):
+            assert x.step is None, "step parameter is not accepted when slicing MoneyFrame"
+            if isinstance(coalesce(x.start, 0), int) and isinstance(coalesce(x.stop, -1), int):
+                start_ix, end_ix = coalesce(x.start, 0), coalesce(x.stop, -1)
+                dah = MoneyFrame(self.df.iloc[start_ix:end_ix])
+            else:
+                start_date = pd.to_datetime(coalesce(x.start, self.min_date()))
+                end_date = pd.to_datetime(coalesce(x.stop, self.max_date()))
+                assert start_date <= end_date, "Must have start_date <= end_date"
+                dah = self.get_slice(start_date, end_date, extrapolate=False)
+        elif isinstance(x, int):
+            dah = MoneyFrame(self.df.iloc[x:x + 1])
+        else:
+            date = pd.to_datetime(x)
+            dah = self.get_slice(date, date, extrapolate=False)
+
+        return dah
+
+    def __len__(self):
+        return len(self.df)

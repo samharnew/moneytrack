@@ -6,7 +6,7 @@ from moneytrack import MoneyData, MODULE_PATH
 logging.basicConfig(level=logging.DEBUG)
 
 
-class TestMoneyFrame(unittest.TestCase):
+class TestCore(unittest.TestCase):
 
     def test_money_track(self):
         print(MODULE_PATH)

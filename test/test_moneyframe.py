@@ -10,7 +10,7 @@ from moneytrack import BalanceTransfers, BalanceUpdates, MoneyFrame
 logging.basicConfig(level=logging.DEBUG)
 
 
-class TestCore(unittest.TestCase):
+class TestMoneyFrame(unittest.TestCase):
 
     def test_get_daily_balances(self):
         bal_trans = BalanceTransfers.from_dict({
