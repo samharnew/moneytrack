@@ -72,7 +72,7 @@ class MoneyData(MoneyFrameCollection):
         """
 
         if by is True:
-            return self.groupby(lambda x: 1, key_title="ALL")
+            return self.groupby(lambda x: "ALL", key_title="ALL")
         if by is False or by.upper() == DataFields.ACCOUNT_KEY.upper():
             return self
 

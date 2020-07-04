@@ -43,15 +43,17 @@ class MoneyPlot:
             **plt_kwargs
     ):
 
-        df, agg_col = self.money_data.get_daily_account_history_df(
-            filters=filters,
-            agg=agg,
-            ret_agg_lvl=True,
+        df = self.money_data.filter_accounts(filters).groupby_accounts(agg).to_df(
             inc_interest_rate=(not cumulative and metric == MoneyPlot.Metric.InterestRate),
             inc_cum_interest_rate=(cumulative and metric == MoneyPlot.Metric.InterestRate),
             start_date=pd.to_datetime(start_date),
             end_date=pd.to_datetime(end_date),
         )
+        agg_col = agg
+        if agg is True:
+            agg_col = "ALL"
+        if agg is False:
+            agg_col = DataFields.ACCOUNT_KEY
 
         f, ax = MoneyPlot.get_figure(ax=ax)
         ax.set_xlabel("Date")
@@ -117,21 +119,18 @@ class MoneyPlot:
     ):
 
         if metric == MoneyPlot.Metric.InterestRate:
-            df = self.money_data.interest_rate_breakdown(
+            df = self.money_data.filter_accounts(filters).groupby_accounts(agg).avg_interest_rates(
                 start_date=pd.to_datetime(start_date),
                 end_date=pd.to_datetime(end_date),
-                agg=agg,
-                filters=filters,
                 as_prcnt=True,
-                as_ayr=True
+                as_ayr=True,
+                as_df=True,
             )
             col = DataFields.INTEREST_RATE
         if metric == MoneyPlot.Metric.Interest:
-            df = self.money_data.get_daily_account_history_df(
+            df = self.money_data.filter_accounts(filters).groupby_accounts(agg).to_df(
                 start_date=pd.to_datetime(start_date),
                 end_date=pd.to_datetime(end_date),
-                agg=agg,
-                filters=filters,
                 as_prcnt=True,
                 as_ayr=True
             )
@@ -148,12 +147,11 @@ class MoneyPlot:
         range_y = max_y - min_y
 
         if plot_average and col == DataFields.INTEREST_RATE and agg is not True:
-            rate = self.money_data.interest_rate_breakdown(
-                filters=filters, agg=True,
+            rate = self.money_data.filter_accounts(filters=filters).groupby_accounts(True).avg_interest_rates(
                 start_date=pd.to_datetime(start_date),
                 end_date=pd.to_datetime(end_date),
                 as_prcnt=True, as_ayr=True
-            )[DataFields.INTEREST_RATE].values[0]
+            )["ALL"]
 
             ax.axhline(rate, color='black', ls=':', lw=1.5)
             x_max = ax.get_xlim()[1]

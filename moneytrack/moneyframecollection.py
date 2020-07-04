@@ -155,7 +155,7 @@ class MoneyFrameCollection:
                 as_prcnt=as_prcnt,
                 **kwargs
             ).assign(**{key_title: key})
-            for key, mf in self.moneyframes.values()
+            for key, mf in self.moneyframes.items()
         ]
 
         return pd.concat(dfs).reset_index().set_index([DataFields.DATE, key_title])
