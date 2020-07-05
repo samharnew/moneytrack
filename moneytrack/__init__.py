@@ -2,7 +2,7 @@ import os
 
 from moneytrack.config import Config
 from moneytrack.core import MoneyData
-from moneytrack.datasets import DataFields, Accounts, BalanceTransfers, BalanceUpdates
+from moneytrack.datasets import DataField, Accounts, BalanceTransfers, BalanceUpdates
 from moneytrack.moneyframe import MoneyFrame
 from moneytrack.moneyframecollection import MoneyFrameCollection
 from moneytrack.plotting import MoneyPlot

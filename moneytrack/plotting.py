@@ -8,7 +8,7 @@ import pandas as pd
 from pandas.plotting import register_matplotlib_converters
 
 from .core import MoneyData
-from .datasets import DataFields
+from .datasets import DataField
 
 register_matplotlib_converters()
 
@@ -53,7 +53,7 @@ class MoneyPlot:
         if agg is True:
             agg_col = "ALL"
         if agg is False:
-            agg_col = DataFields.ACCOUNT_KEY
+            agg_col = DataField.ACCOUNT_KEY
 
         f, ax = MoneyPlot.get_figure(ax=ax)
         ax.set_xlabel("Date")
@@ -63,27 +63,27 @@ class MoneyPlot:
 
         if metric == MoneyPlot.Metric.Balance:
             ax.set_ylabel("Balance [£]")
-            col_name = DataFields.BALANCE
+            col_name = DataField.BALANCE
             title = "Account Balance"
             assert cumulative is False, "Plotting the cumulative balance makes NO sense. Rethink"
         elif metric == MoneyPlot.Metric.Interest:
             ax.set_ylabel("Interest [£]")
-            col_name = DataFields.INTEREST
+            col_name = DataField.INTEREST
             title = "Interest Payments"
         elif metric == MoneyPlot.Metric.Transfers:
             ax.set_ylabel("Transfer Amount [£]")
-            col_name = DataFields.TRANSFER
+            col_name = DataField.TRANSFER
             title = "Account Transfers"
         elif metric == MoneyPlot.Metric.InterestRate:
             ax.set_ylabel("Interest Rate [%]")
             title = "Interest Rate"
             if cumulative:
-                col_name = DataFields.CUM_INTEREST_RATE
+                col_name = DataField.CUM_INTEREST_RATE
 
                 def cum_func(x):
                     return x
             else:
-                col_name = DataFields.INTEREST_RATE
+                col_name = DataField.INTEREST_RATE
         else:
             raise AttributeError("Not implemented plotting for metric={}".format(metric))
 
@@ -98,7 +98,7 @@ class MoneyPlot:
         ax.set_title(title)
 
         for label, df_acc in df.groupby(level=agg_col):
-            x = df_acc[col_name].index.get_level_values(DataFields.DATE)
+            x = df_acc[col_name].index.get_level_values(DataField.DATE)
             if cumulative:
                 ax.plot(x, cum_func(df_acc[col_name].values), label=label, **plt_kwargs)
             else:
@@ -126,7 +126,7 @@ class MoneyPlot:
                 as_ayr=True,
                 as_df=True,
             )
-            col = DataFields.INTEREST_RATE
+            col = DataField.INTEREST_RATE
         if metric == MoneyPlot.Metric.Interest:
             df = self.money_data.filter_accounts(filters).groupby_accounts(agg).to_df(
                 start_date=pd.to_datetime(start_date),
@@ -135,7 +135,7 @@ class MoneyPlot:
                 as_ayr=True
             )
             df = df.groupby(level=agg).sum()
-            col = DataFields.INTEREST
+            col = DataField.INTEREST
 
         f, ax = MoneyPlot.get_figure(ax=ax)
         ax.set_xlabel(df.index.name)
@@ -146,7 +146,7 @@ class MoneyPlot:
         min_y, max_y = df[col].min(), df[col].max()
         range_y = max_y - min_y
 
-        if plot_average and col == DataFields.INTEREST_RATE and agg is not True:
+        if plot_average and col == DataField.INTEREST_RATE and agg is not True:
             rate = self.money_data.filter_accounts(filters=filters).groupby_accounts(True).avg_interest_rates(
                 start_date=pd.to_datetime(start_date),
                 end_date=pd.to_datetime(end_date),

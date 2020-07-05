@@ -4,7 +4,7 @@ from typing import Dict, Hashable, Optional, Callable, Union, List, Tuple, Any
 
 import pandas as pd
 
-from .datasets import DataFields
+from .datasets import DataField
 from .moneyframe import MoneyFrame
 from .utils import coalesce
 
@@ -113,11 +113,14 @@ class MoneyFrameCollection:
 
         d = self.map_values(lambda x: x.calc_avg_interest_rate(**kwargs))
         if as_df:
-            df = pd.DataFrame(index=d.keys(), data=d.values(), columns=[DataFields.INTEREST_RATE])
+            df = pd.DataFrame(index=d.keys(), data=d.values(), columns=[DataField.INTEREST_RATE])
             if self.key_title is not None:
                 df.index.name = self.key_title
-            return df.sort_values(DataFields.INTEREST_RATE)
+            return df.sort_values(DataField.INTEREST_RATE)
         return d
+
+    def __getitem__(self, item) -> MoneyFrame:
+        return self.moneyframes[item]
 
     def to_df(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
               inc_cum_interest_rate: bool = False, inc_interest_rate: bool = False,
@@ -140,9 +143,9 @@ class MoneyFrameCollection:
             When True, return as a percentage rather than a fraction
         :return: pd.DataFrame
             DataFrame containing the daily account summary. It is indexed by date, and has the following columns:
-                - DataFields.INTEREST
-                - DataFields.TRANSFER
-                - DataFields.BALANCE
+                - DataField.INTEREST
+                - DataField.TRANSFER
+                - DataField.BALANCE
         """
         key_title = coalesce(self.key_title, "AGG_KEY")
         dfs = [
@@ -158,4 +161,4 @@ class MoneyFrameCollection:
             for key, mf in self.moneyframes.items()
         ]
 
-        return pd.concat(dfs).reset_index().set_index([DataFields.DATE, key_title])
+        return pd.concat(dfs).reset_index().set_index([DataField.DATE, key_title])

@@ -1,6 +1,6 @@
 import logging
 from collections import OrderedDict
-from typing import Dict, Union, Iterable, Optional, List, Type
+from typing import Dict, Union, Iterable, Optional, List, Type, Any
 
 import pandas as pd
 
@@ -10,6 +10,45 @@ from .utils import compare_pd_df
 log = logging.getLogger("datasets")
 
 
+class DataField:
+
+    def __init__(self, name: str, dtype: Union[str, type], mandatory: bool = True, def_value: Any = None):
+        self.name = name
+        self.dtype = dtype
+        self.mandatory = mandatory
+        self.def_value = def_value
+
+    # Core Dataset Fields
+    ACCOUNT_KEY = "ACCOUNT_KEY"
+    DATE = "DATE"
+    BALANCE = "BALANCE"
+    FROM_ACCOUNT_KEY = "FROM_ACCOUNT_KEY"
+    TO_ACCOUNT_KEY = "TO_ACCOUNT_KEY"
+    AMOUNT = "AMOUNT"
+
+    # Account Details
+    ACCOUNT_NBR = "ACCOUNT_NBR"
+    SORT_CODE = "SORT_CODE"
+    COMPANY = "COMPANY"
+    ACCOUNT_TYP = "ACCOUNT_TYP"
+    ISA = "ISA"
+
+    # Daily Summary Fields
+    INTEREST = "INTEREST"
+    TRANSFER = "TRANSFER"
+
+    # Others
+    PREV_BALANCE = "PREV_BALANCE"
+    PREV_DATE = "PREV_DATE"
+    INTEREST_RATE = "INTEREST_RATE"
+    CUM_INTEREST_RATE = "CUM_INTEREST_RATE"
+
+    START_DATE = "START_DATE"
+    END_DATE = "END_DATE"
+    START_BALANCE = "START_BALANCE"
+    END_BALANCE = "END_BALANCE"
+
+
 class DataSource:
     """
     A base class that can used for any moneytrack data set.
@@ -17,7 +56,7 @@ class DataSource:
 
     # Specify a dict of columns that *must* be in the DataSource and their type. If "date" is
     # chosen as the type, the pd.to_datetime() function will be used to convert the input.
-    dtypes = None
+    dtypes: List[DataField] = None
     DATE_TYPE = "date"
 
     def __init__(self, df: pd.DataFrame):
@@ -29,11 +68,11 @@ class DataSource:
         """
         Returns a list of column names that are mandatory in the DataSource
         """
-        return list(cls.get_dtypes().keys())
+        return [f.name for f in cls.dtypes if f.mandatory]
 
     @classmethod
-    def get_dtypes(cls):
-        return {k.upper(): v for k, v in cls.dtypes.items()}
+    def get_dtypes(cls) -> Dict[str, Union[type, str]]:
+        return {f.name.upper(): f.dtype for f in cls.dtypes}
 
     @classmethod
     def has_mandatory_cols(cls, df: pd.DataFrame) -> bool:
@@ -44,13 +83,14 @@ class DataSource:
     @classmethod
     def coerce_dtypes(cls, df: pd.DataFrame) -> pd.DataFrame:
         for col, col_type in cls.get_dtypes().items():
-            try:
-                if col_type == cls.DATE_TYPE:
-                    df[col] = pd.to_datetime(df[col])
-                else:
-                    df[col] = df[col].astype(col_type)
-            except Exception:
-                raise TypeError("Cannot cast column '{}' to dtype={}".format(col, col_type))
+            if col in df.columns:
+                try:
+                    if col_type == cls.DATE_TYPE:
+                        df[col] = pd.to_datetime(df[col])
+                    else:
+                        df[col] = df[col].astype(col_type)
+                except Exception:
+                    raise TypeError("Cannot cast column '{}' to dtype={}".format(col, col_type))
         return df
 
     @classmethod
@@ -126,45 +166,20 @@ class DataSource:
         return self.__class__.__name__ + ":\n" + str(self.df)
 
 
-class DataFields:
-    # Core Dataset Fields
-    ACCOUNT_KEY = "ACCOUNT_KEY"
-    DATE = "DATE"
-    BALANCE = "BALANCE"
-    FROM_ACCOUNT_KEY = "FROM_ACCOUNT_KEY"
-    TO_ACCOUNT_KEY = "TO_ACCOUNT_KEY"
-    AMOUNT = "AMOUNT"
-
-    # Daily Summary Fields
-    INTEREST = "INTEREST"
-    TRANSFER = "TRANSFER"
-
-    # Others
-    PREV_BALANCE = "PREV_BALANCE"
-    PREV_DATE = "PREV_DATE"
-    INTEREST_RATE = "INTEREST_RATE"
-    CUM_INTEREST_RATE = "CUM_INTEREST_RATE"
-
-    START_DATE = "START_DATE"
-    END_DATE = "END_DATE"
-    START_BALANCE = "START_BALANCE"
-    END_BALANCE = "END_BALANCE"
-
-
 class Accounts(DataSource):
     """
     A list of accounts, identified by a unique account key.
     """
 
     # The data types for each column
-    dtypes = OrderedDict([
-        (DataFields.ACCOUNT_KEY, str),
-        ("ACCOUNT_NBR", str),
-        ("SORT_CODE", str),
-        ("COMPANY", str),
-        ("ACCOUNT_TYP", str),
-        ("ISA", bool),
-    ])
+    dtypes = [
+        DataField(name=DataField.ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=DataField.ACCOUNT_NBR, dtype=str, mandatory=False),
+        DataField(name=DataField.SORT_CODE, dtype=str, mandatory=False),
+        DataField(name=DataField.COMPANY, dtype=str, mandatory=False),
+        DataField(name=DataField.ACCOUNT_TYP, dtype=str, mandatory=False),
+        DataField(name=DataField.ISA, dtype=bool, mandatory=False),
+    ]
 
     def __init__(self, df: pd.DataFrame):
         super(Accounts, self).__init__(df)
@@ -177,7 +192,7 @@ class Accounts(DataSource):
             Do not return the EXT (external) account, used to track payments into / out of savings
         :return: List[str]
         """
-        account_keys = self.df[DataFields.ACCOUNT_KEY].values.tolist()
+        account_keys = self.df[DataField.ACCOUNT_KEY].values.tolist()
         if without_ext:
             account_keys = list(set(account_keys) - {Config.external_account_key})
         return account_keys
@@ -215,7 +230,7 @@ class Accounts(DataSource):
             values = [v.upper() for v in values]
             df_acc = df_acc[df_acc[column.upper()].str.upper().isin(values)]
 
-        return df_acc[DataFields.ACCOUNT_KEY].values.tolist()
+        return df_acc[DataField.ACCOUNT_KEY].values.tolist()
 
 
 class BalanceUpdates(DataSource):
@@ -225,18 +240,18 @@ class BalanceUpdates(DataSource):
     """
 
     # The data types for each column
-    dtypes = OrderedDict([
-        (DataFields.ACCOUNT_KEY, str),
-        (DataFields.BALANCE, float),
-        (DataFields.DATE, DataSource.DATE_TYPE),
-    ])
+    dtypes = [
+        DataField(name=DataField.ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=DataField.BALANCE, dtype=float, mandatory=True),
+        DataField(name=DataField.DATE, dtype=DataSource.DATE_TYPE, mandatory=True),
+    ]
 
     def __init__(self, df):
         super(BalanceUpdates, self).__init__(df)
 
     def get_df_filtered(self, account_keys: List[str]) -> pd.DataFrame:
         df = self.get_df()
-        mask = df[DataFields.ACCOUNT_KEY].isin(account_keys)
+        mask = df[DataField.ACCOUNT_KEY].isin(account_keys)
         return df[mask]
 
     def get_acc_updates(self, account_key: str, prev_update_cols: bool = False) -> pd.DataFrame:
@@ -249,12 +264,12 @@ class BalanceUpdates(DataSource):
         :return: DataFrame of account updates
         """
         df = self.get_df()
-        df_acc = df[df[DataFields.ACCOUNT_KEY] == account_key][[DataFields.DATE, DataFields.BALANCE]].copy()
-        df_acc.sort_values(DataFields.DATE, ascending=True, inplace=True)
+        df_acc = df[df[DataField.ACCOUNT_KEY] == account_key][[DataField.DATE, DataField.BALANCE]].copy()
+        df_acc.sort_values(DataField.DATE, ascending=True, inplace=True)
 
         if prev_update_cols:
-            df_acc[DataFields.PREV_BALANCE] = df_acc[DataFields.BALANCE].shift(1)
-            df_acc[DataFields.PREV_DATE] = df_acc[DataFields.DATE].shift(1)
+            df_acc[DataField.PREV_BALANCE] = df_acc[DataField.BALANCE].shift(1)
+            df_acc[DataField.PREV_DATE] = df_acc[DataField.DATE].shift(1)
 
         return df_acc
 
@@ -265,19 +280,19 @@ class BalanceTransfers(DataSource):
     """
 
     # The data types for each column
-    dtypes = OrderedDict([
-        (DataFields.DATE, DataSource.DATE_TYPE),
-        (DataFields.AMOUNT, float),
-        (DataFields.FROM_ACCOUNT_KEY, str),
-        (DataFields.TO_ACCOUNT_KEY, str),
-    ])
+    dtypes = [
+        DataField(name=DataField.DATE, dtype=DataSource.DATE_TYPE, mandatory=True),
+        DataField(name=DataField.AMOUNT, dtype=float, mandatory=True),
+        DataField(name=DataField.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=DataField.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
+    ]
 
     def __init__(self, df):
         super(BalanceTransfers, self).__init__(df)
 
     def get_df_filtered(self, account_keys: List[str]) -> pd.DataFrame:
         df = self.get_df()
-        mask = df[DataFields.FROM_ACCOUNT_KEY].isin(account_keys) | df[DataFields.TO_ACCOUNT_KEY].isin(account_keys)
+        mask = df[DataField.FROM_ACCOUNT_KEY].isin(account_keys) | df[DataField.TO_ACCOUNT_KEY].isin(account_keys)
         return df[mask]
 
     def get_acc_transfers_to(self, account_key: str) -> pd.DataFrame:
@@ -289,7 +304,7 @@ class BalanceTransfers(DataSource):
         :return: DataFrame of account transfers
         """
         df = self.get_df()
-        return df[df[DataFields.TO_ACCOUNT_KEY] == account_key][[DataFields.DATE, DataFields.AMOUNT]].copy()
+        return df[df[DataField.TO_ACCOUNT_KEY] == account_key][[DataField.DATE, DataField.AMOUNT]].copy()
 
     def get_acc_transfers_from(self, account_key: str, signed: bool = False) -> pd.DataFrame:
         """
@@ -301,9 +316,9 @@ class BalanceTransfers(DataSource):
         :return: DataFrame of account transfers
         """
         df = self.get_df()
-        df_t = df[df[DataFields.FROM_ACCOUNT_KEY] == account_key][[DataFields.DATE, DataFields.AMOUNT]].copy()
+        df_t = df[df[DataField.FROM_ACCOUNT_KEY] == account_key][[DataField.DATE, DataField.AMOUNT]].copy()
         if signed:
-            df_t[DataFields.AMOUNT] = -df_t[DataFields.AMOUNT]
+            df_t[DataField.AMOUNT] = -df_t[DataField.AMOUNT]
         return df_t
 
     def get_acc_transfers(self, account_key) -> pd.DataFrame:
