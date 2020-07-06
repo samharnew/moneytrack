@@ -205,3 +205,10 @@ class MoneyData(MoneyFrameCollection):
             balance_transfers_path=cls.find_path(dir=dir, filename_substr=transfers_substr, file_ext=Config.CSV_EXT),
             balance_updates_path=cls.find_path(dir=dir, filename_substr=updates_substr, file_ext=Config.CSV_EXT),
         )
+
+    def __getitem__(self, item):
+        return MoneyData(
+            self.accounts,
+            super(MoneyData, self).__getitem__(item)
+        )
+

@@ -9,9 +9,91 @@ from pandas.plotting import register_matplotlib_converters
 
 from .core import MoneyData
 from .datasets import DataField
+from .moneyframe import MoneyFrame
+from .moneyframecollection import MoneyFrameCollection
+from .utils import assert_type
 
 register_matplotlib_converters()
 
+
+class MoneyViz:
+    class Metric(Enum):
+        Balance = 1
+        Interest = 2
+        Transfers = 3
+        InterestRate = 4
+
+    def_labels = {
+        Metric.InterestRate: "Interest Rate [%]",
+        Metric.Interest: "Interest Payments [£]",
+        Metric.Transfers: "Transfer Amount [£]",
+        Metric.Balance: "Balance [£]"
+    }
+
+    @classmethod
+    def get_figure(cls, ax=None):
+        if ax is None:
+            f, ax = plt.subplots()
+        else:
+            f = ax.get_figure()
+        return f, ax
+
+    @classmethod
+    def plot_mf(cls, mf: MoneyFrame, metric: Metric, cumulative: bool = False, ax=None, **kwargs):
+
+        assert_type(mf, MoneyFrame)
+        assert_type(metric, cls.Metric)
+
+        f, ax = cls.get_figure(ax=ax)
+
+        if metric == MoneyViz.Metric.Balance:
+            s = mf.get_daily_balance()
+            assert cumulative is False, "Plotting cumulative balance makes NO sense. Rethink"
+        elif metric == MoneyViz.Metric.Interest:
+            s = mf.get_daily_interest()
+            if cumulative:
+                s = s.cumsum()
+        elif metric == MoneyViz.Metric.Transfers:
+            s = mf.get_daily_transfers()
+            if cumulative:
+                s = s.cumsum()
+        elif metric == MoneyViz.Metric.InterestRate:
+            s = mf.get_daily_interest_rate()
+            if cumulative:
+                s = mf.get_cumulative_interest_rate()
+        else:
+            raise AttributeError("Not implemented plotting for metric={}".format(metric))
+
+        ax.plot(s, **kwargs)
+
+        return f, ax
+
+    @classmethod
+    def plot_mfc(cls, mfc: MoneyFrameCollection, metric: Metric, cumulative: bool = False, ax=None, **kwargs):
+
+        for k, mf in mfc.items():
+            f, ax = cls.plot_mf(mf, metric, cumulative=cumulative, ax=ax, label=k, **kwargs)
+        return f, ax
+
+    @classmethod
+    def plot(cls, mf: Union[MoneyFrame, MoneyFrameCollection], metric: Metric, cumulative: bool = False,
+             ax=None, **kwargs):
+
+        if isinstance(mf, MoneyFrame):
+            f, ax = cls.plot_mf(mf, metric=metric, cumulative=cumulative, ax=ax, **kwargs)
+        elif isinstance(mf, MoneyFrameCollection):
+            f, ax = cls.plot_mfc(mf, metric=metric, cumulative=cumulative, ax=ax, **kwargs)
+        else:
+            raise TypeError("Can only plot MoneyFrame or MoneyFrameCollection objects")
+
+        y_label = cls.def_labels[metric]
+        if cumulative:
+            y_label = "Cumulative " + y_label
+
+        ax.set_xlabel("Date")
+        ax.set_ylabel(y_label)
+
+        return f, ax
 
 class MoneyPlot:
     class Metric(Enum):

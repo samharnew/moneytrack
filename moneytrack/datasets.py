@@ -1,5 +1,4 @@
 import logging
-from collections import OrderedDict
 from typing import Dict, Union, Iterable, Optional, List, Type, Any
 
 import pandas as pd
@@ -25,6 +24,7 @@ class DataField:
     FROM_ACCOUNT_KEY = "FROM_ACCOUNT_KEY"
     TO_ACCOUNT_KEY = "TO_ACCOUNT_KEY"
     AMOUNT = "AMOUNT"
+    DESCRIPTION = "DESCRIPTION"
 
     # Account Details
     ACCOUNT_NBR = "ACCOUNT_NBR"
@@ -48,44 +48,59 @@ class DataField:
     START_BALANCE = "START_BALANCE"
     END_BALANCE = "END_BALANCE"
 
+    DATE_TYPE = "date"
+
 
 class DataSource:
     """
     A base class that can used for any moneytrack data set.
     """
 
-    # Specify a dict of columns that *must* be in the DataSource and their type. If "date" is
+    # Specify a list of DataField that might be in the DataSource and their type. If "date" is
     # chosen as the type, the pd.to_datetime() function will be used to convert the input.
-    dtypes: List[DataField] = None
-    DATE_TYPE = "date"
+    # If a DataField is specified as mandatory, it must be in the DataSource, or an exception is thrown.
+    dfields: List[DataField] = []
+
+    # List of field names that are NOT allowed in the DataSource
+    banned_cols: List[str] = []
 
     def __init__(self, df: pd.DataFrame):
         log.debug("Creating new {} object".format(self.__class__.__name__))
         self.df = self.validate_df(df)
 
     @classmethod
-    def mandatory_cols(cls) -> List[str]:
+    def get_mandatory_cols(cls) -> List[str]:
         """
         Returns a list of column names that are mandatory in the DataSource
         """
-        return [f.name for f in cls.dtypes if f.mandatory]
+        return [f.name.upper() for f in cls.dfields if f.mandatory is True]
+
+    @classmethod
+    def get_banned_cols(cls):
+        return [c.upper() for c in cls.banned_cols]
 
     @classmethod
     def get_dtypes(cls) -> Dict[str, Union[type, str]]:
-        return {f.name.upper(): f.dtype for f in cls.dtypes}
+        return {f.name.upper(): f.dtype for f in cls.dfields}
 
     @classmethod
     def has_mandatory_cols(cls, df: pd.DataFrame) -> bool:
-        exp = set(cls.mandatory_cols())
+        exp = set(cls.get_mandatory_cols())
         cols = set(df.columns)
         return len(exp - cols) == 0
+
+    @classmethod
+    def has_banned_cols(cls, df: pd.DataFrame) -> bool:
+        banned = set(cls.get_banned_cols())
+        cols = set(df.columns)
+        return len(banned & cols) == 0
 
     @classmethod
     def coerce_dtypes(cls, df: pd.DataFrame) -> pd.DataFrame:
         for col, col_type in cls.get_dtypes().items():
             if col in df.columns:
                 try:
-                    if col_type == cls.DATE_TYPE:
+                    if col_type == DataField.DATE_TYPE:
                         df[col] = pd.to_datetime(df[col])
                     else:
                         df[col] = df[col].astype(col_type)
@@ -101,7 +116,12 @@ class DataSource:
 
         # Check that all the required columns are there
         assert cls.has_mandatory_cols(df), "The DataFrame passed to {} should have columns {}, but has {}".format(
-            cls.__name__, cls.mandatory_cols(), df.columns
+            cls.__name__, cls.get_mandatory_cols(), df.columns
+        )
+
+        # Check that all the banned columns are not there
+        assert cls.has_banned_cols(df), "The DataFrame passed to {} should NOT have columns {}, but has {}".format(
+            cls.__name__, cls.get_banned_cols(), df.columns
         )
 
         # Cast all of the columns to their correct data types
@@ -118,7 +138,7 @@ class DataSource:
 
     @classmethod
     def get_dtypes_pandas(cls: "DataSource") -> Dict[str, Type]:
-        return {colnm: (dtype if dtype != cls.DATE_TYPE else str) for colnm, dtype in cls.get_dtypes().items()}
+        return {colnm: (dtype if dtype != DataField.DATE_TYPE else str) for colnm, dtype in cls.get_dtypes().items()}
 
     @classmethod
     def read_csv(cls: "DataSource", filename: str, **kwargs) -> pd.DataFrame:
@@ -172,13 +192,23 @@ class Accounts(DataSource):
     """
 
     # The data types for each column
-    dtypes = [
+    dfields = [
         DataField(name=DataField.ACCOUNT_KEY, dtype=str, mandatory=True),
         DataField(name=DataField.ACCOUNT_NBR, dtype=str, mandatory=False),
         DataField(name=DataField.SORT_CODE, dtype=str, mandatory=False),
         DataField(name=DataField.COMPANY, dtype=str, mandatory=False),
         DataField(name=DataField.ACCOUNT_TYP, dtype=str, mandatory=False),
         DataField(name=DataField.ISA, dtype=bool, mandatory=False),
+        DataField(name=DataField.DESCRIPTION, dtype=bool, mandatory=False),
+    ]
+
+    # Should not find these columns
+    banned_cols = [
+        DataField.DATE,
+        DataField.BALANCE,
+        DataField.TRANSFER,
+        DataField.TO_ACCOUNT_KEY,
+        DataField.FROM_ACCOUNT_KEY,
     ]
 
     def __init__(self, df: pd.DataFrame):
@@ -220,15 +250,23 @@ class Accounts(DataSource):
             return self.get_account_keys(without_ext)
 
         df_acc = self.get_df().copy(deep=False)
-        df_acc.columns = [c.upper() for c in df_acc.columns]
 
         for column, values in filters.items():
             if column.upper() not in df_acc.columns:
                 raise KeyError("The column {} is not in the Accounts data")
             if isinstance(values, str):
                 values = [values]
-            values = [v.upper() for v in values]
-            df_acc = df_acc[df_acc[column.upper()].str.upper().isin(values)]
+            else:
+                try:
+                    iter(values)
+                except TypeError:
+                    values = [values]
+
+            if isinstance(values[0], str):
+                values = [str(v).upper() for v in values]
+                df_acc = df_acc[df_acc[column.upper()].str.upper().isin(values)]
+            else:
+                df_acc = df_acc[df_acc[column.upper()].isin(values)]
 
         return df_acc[DataField.ACCOUNT_KEY].values.tolist()
 
@@ -240,11 +278,14 @@ class BalanceUpdates(DataSource):
     """
 
     # The data types for each column
-    dtypes = [
+    dfields = [
+        DataField(name=DataField.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
         DataField(name=DataField.ACCOUNT_KEY, dtype=str, mandatory=True),
         DataField(name=DataField.BALANCE, dtype=float, mandatory=True),
-        DataField(name=DataField.DATE, dtype=DataSource.DATE_TYPE, mandatory=True),
+        DataField(name=DataField.DESCRIPTION, dtype=bool, mandatory=False),
     ]
+
+    banned_cols = [DataField.FROM_ACCOUNT_KEY, DataField.TO_ACCOUNT_KEY]
 
     def __init__(self, df):
         super(BalanceUpdates, self).__init__(df)
@@ -280,12 +321,15 @@ class BalanceTransfers(DataSource):
     """
 
     # The data types for each column
-    dtypes = [
-        DataField(name=DataField.DATE, dtype=DataSource.DATE_TYPE, mandatory=True),
+    dfields = [
+        DataField(name=DataField.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
         DataField(name=DataField.AMOUNT, dtype=float, mandatory=True),
         DataField(name=DataField.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
         DataField(name=DataField.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=DataField.DESCRIPTION, dtype=bool, mandatory=False),
     ]
+
+    banned_cols = [DataField.ACCOUNT_KEY]
 
     def __init__(self, df):
         super(BalanceTransfers, self).__init__(df)

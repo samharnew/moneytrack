@@ -195,6 +195,9 @@ class MoneyFrame:
         """Series of the daily interest rate, indexed by date."""
         return self.to_df(inc_interest_rate=True, **kwargs)[DataField.INTEREST_RATE]
 
+    def get_cumulative_interest_rate(self, **kwargs) -> pd.Series:
+        return self.to_df(inc_cum_interest_rate=True, **kwargs)[DataField.CUM_INTEREST_RATE]
+
     @classmethod
     def _interest_rate_conversions(cls, adr: np.array, as_ayr: bool = True, as_prcnt: bool = True) -> np.array:
         """

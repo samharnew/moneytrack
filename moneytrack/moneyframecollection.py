@@ -122,6 +122,20 @@ class MoneyFrameCollection:
     def __getitem__(self, item) -> MoneyFrame:
         return self.moneyframes[item]
 
+    def items(self):
+        return self.moneyframes.items()
+    def values(self):
+        return self.moneyframes.values()
+    def keys(self):
+        return self.moneyframes.keys()
+
+    def __getitem__(self, x) -> "MoneyFrameCollection":
+
+        return MoneyFrameCollection(
+            {k: v.__getitem__(x) for k, v in self.items()},
+            self.key_title
+        )
+
     def to_df(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
               inc_cum_interest_rate: bool = False, inc_interest_rate: bool = False,
               as_ayr: bool = True, as_prcnt: bool = True, **kwargs) -> pd.DataFrame:
