@@ -1,5 +1,5 @@
-import unittest
 import os
+import unittest
 
 import moneytrack as mt
 
@@ -46,6 +46,7 @@ class TestPlotting(unittest.TestCase):
 
         f, ax = mt.MoneyViz.plot(mfc, mt.MoneyViz.Metric.Interest, cumulative=True)
         f.savefig(os.path.join(self.sample_plt_dir, "mfc_cum_interest.pdf"))
+
 
 if __name__ == '__main__':
     unittest.main()

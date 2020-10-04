@@ -1,5 +1,4 @@
 class Config:
-
     CSV_EXT = ".csv"
     EXTERNAL_ACCOUNT_KEY = "EXT"
 

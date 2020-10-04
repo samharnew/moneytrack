@@ -3,11 +3,11 @@ import logging
 import os
 from typing import Optional, Union, List, Dict
 
-from .datasets import DataField, Accounts, BalanceUpdates, BalanceTransfers, Config
+from .config import Config
+from .datasets import Accounts, BalanceUpdates, BalanceTransfers
 from .moneyframe import MoneyFrame
 from .moneyframecollection import MoneyFrameCollection
 from .utils import assert_type
-from .config import Config
 
 log = logging.getLogger("core")
 config = Config
@@ -214,4 +214,3 @@ class MoneyData(MoneyFrameCollection):
             self.accounts,
             super(MoneyData, self).__getitem__(item)
         )
-

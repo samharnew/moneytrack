@@ -6,10 +6,10 @@ from typing import Any, Optional, Tuple, Iterable, Union
 import numpy as np
 import pandas as pd
 
+from .config import Config
 from .datasets import BalanceUpdates, BalanceTransfers
 from .utils import coalesce, assert_type, adr_to_ayr, calc_avg_interest_rate, calc_daily_balances_w_transfers, \
     dates_between, ayr_to_adr
-from .config import Config
 
 field_names = Config.FieldNames
 
@@ -60,7 +60,7 @@ class MoneyFrame:
         # If daily interest is not given, calculate from daily balances and transfers
         if field_names.INTEREST not in df.columns:
             df[field_names.INTEREST] = (df[field_names.BALANCE] - df[field_names.TRANSFER] -
-                                      df[field_names.BALANCE].shift(1)).fillna(0.0)
+                                        df[field_names.BALANCE].shift(1)).fillna(0.0)
 
         # If the date isn't already the index column, make sure it is
         if field_names.DATE in df.columns:

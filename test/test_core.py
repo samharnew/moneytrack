@@ -7,6 +7,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 field_names = mt.Config.FieldNames
 
+
 class TestCore(unittest.TestCase):
 
     def test_money_track(self):
@@ -35,13 +36,14 @@ class TestCore(unittest.TestCase):
         mf_100 = mt.MoneyFrame.from_fixed_rate(days=5, start_bal=100.0, ayr_prcnt=5.0)
         mf_200 = mt.MoneyFrame.from_fixed_rate(days=5, start_bal=200.0, ayr_prcnt=5.0)
 
-        print( md.groupby_accounts(field_names.ISA)[True] )
+        print(md.groupby_accounts(field_names.ISA)[True])
         # self.assertEqual(md.groupby_accounts(field_names.ISA)[True], mf_200)
         # self.assertEqual(md.groupby_accounts(field_names.ISA)[False], mf_100)
         # self.assertEqual(md.filter_accounts({field_names.ACCOUNT_TYP: "S&S"})
         #                  .groupby_accounts(field_names.ISA)[True], mf_100)
         # self.assertEqual(md.filter_accounts({field_names.ACCOUNT_TYP: "S&S"})
         #                  .groupby_accounts(field_names.ISA)[False], mf_100)
+
 
 if __name__ == '__main__':
     unittest.main()

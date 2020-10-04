@@ -4,9 +4,9 @@ from typing import Dict, Hashable, Optional, Callable, Union, List, Tuple, Any
 
 import pandas as pd
 
+from .config import Config
 from .moneyframe import MoneyFrame
 from .utils import coalesce
-from .config import Config
 
 field_names = Config.FieldNames
 

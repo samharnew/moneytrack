@@ -4,11 +4,12 @@ import unittest
 
 import pandas as pd
 
-from moneytrack import Accounts, BalanceTransfers, BalanceUpdates, compare_pd_df, DataField, SAMPLE_PATH
 import moneytrack as mt
+from moneytrack import Accounts, BalanceTransfers, BalanceUpdates, compare_pd_df, SAMPLE_PATH
 
 logging.basicConfig(level=logging.DEBUG)
 field_names = mt.Config.FieldNames
+
 
 class DatasetTests(unittest.TestCase):
     def setUp(self):

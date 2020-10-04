@@ -11,7 +11,6 @@ field_names = Config.FieldNames
 
 
 class DataField:
-
     DATE_TYPE = "date"
 
     def __init__(self, name: str, dtype: Union[str, type], mandatory: bool = True, def_value: Any = None):
