@@ -4,9 +4,11 @@ import unittest
 
 import pandas as pd
 
-from moneytrack import Accounts, BalanceTransfers, BalanceUpdates, compare_pd_df, DataFields, SAMPLE_PATH
+import moneytrack as mt
+from moneytrack import Accounts, BalanceTransfers, BalanceUpdates, compare_pd_df, SAMPLE_PATH
 
 logging.basicConfig(level=logging.DEBUG)
+field_names = mt.Config.FieldNames
 
 
 class DatasetTests(unittest.TestCase):
@@ -68,24 +70,24 @@ class DatasetTests(unittest.TestCase):
 
     def test_equals(self):
         balance_updates1 = BalanceUpdates.from_dict({
-            DataFields.ACCOUNT_KEY: ["1", "2", "1"],
-            DataFields.BALANCE: [100.0, 200.0, 200.0],
-            DataFields.DATE: ["2019-01-01", "2019-01-01", "2019-01-03"],
+            field_names.ACCOUNT_KEY: ["1", "2", "1"],
+            field_names.BALANCE: [100.0, 200.0, 200.0],
+            field_names.DATE: ["2019-01-01", "2019-01-01", "2019-01-03"],
         })
         balance_updates2 = BalanceUpdates.from_dict({
-            DataFields.ACCOUNT_KEY: ["1", "2", "1"],
-            DataFields.BALANCE: [100.0, 200.0, 200.0],
-            DataFields.DATE: ["2019-01-01", "2019-01-01", "2019-01-03"],
+            field_names.ACCOUNT_KEY: ["1", "2", "1"],
+            field_names.BALANCE: [100.0, 200.0, 200.0],
+            field_names.DATE: ["2019-01-01", "2019-01-01", "2019-01-03"],
         })
         balance_updates3 = BalanceUpdates.from_dict({
-            DataFields.ACCOUNT_KEY: ["1", "1", "2"],
-            DataFields.BALANCE: [100.0, 200.0, 200.0],
-            DataFields.DATE: ["2019-01-01", "2019-01-03", "2019-01-01"],
+            field_names.ACCOUNT_KEY: ["1", "1", "2"],
+            field_names.BALANCE: [100.0, 200.0, 200.0],
+            field_names.DATE: ["2019-01-01", "2019-01-03", "2019-01-01"],
         })
         balance_updates4 = BalanceUpdates.from_dict({
-            DataFields.ACCOUNT_KEY: ["1", "2", "2"],
-            DataFields.BALANCE: [100.0, 200.0, 200.0],
-            DataFields.DATE: ["2019-01-01", "2019-01-03", "2019-01-01"],
+            field_names.ACCOUNT_KEY: ["1", "2", "2"],
+            field_names.BALANCE: [100.0, 200.0, 200.0],
+            field_names.DATE: ["2019-01-01", "2019-01-03", "2019-01-01"],
         })
         self.assertTrue(balance_updates1.equals(balance_updates2))
         self.assertTrue(balance_updates1.equals(balance_updates3))
@@ -93,15 +95,15 @@ class DatasetTests(unittest.TestCase):
 
     def test_get_acc_updates(self):
         balance_updates = BalanceUpdates.from_dict({
-            DataFields.ACCOUNT_KEY: ["1", "2", "1"],
-            DataFields.BALANCE: [100.0, 200.0, 200.0],
-            DataFields.DATE: ["2019-01-01", "2019-01-01", "2019-01-03"],
+            field_names.ACCOUNT_KEY: ["1", "2", "1"],
+            field_names.BALANCE: [100.0, 200.0, 200.0],
+            field_names.DATE: ["2019-01-01", "2019-01-01", "2019-01-03"],
         })
         df = balance_updates.get_acc_updates(account_key="1")
         exp = pd.DataFrame(
             {
-                DataFields.BALANCE: [100.0, 200.0],
-                DataFields.DATE: pd.to_datetime(["2019-01-01", "2019-01-03"]),
+                field_names.BALANCE: [100.0, 200.0],
+                field_names.DATE: pd.to_datetime(["2019-01-01", "2019-01-03"]),
             }
         )
         self.assertTrue(compare_pd_df(df, exp, sort=False))
@@ -109,8 +111,8 @@ class DatasetTests(unittest.TestCase):
         df = balance_updates.get_acc_updates(account_key="1")
         exp = pd.DataFrame(
             {
-                DataFields.BALANCE: [200.0, 100.0],
-                DataFields.DATE: pd.to_datetime(["2019-01-03", "2019-01-01"]),
+                field_names.BALANCE: [200.0, 100.0],
+                field_names.DATE: pd.to_datetime(["2019-01-03", "2019-01-01"]),
             }
         )
         self.assertTrue(compare_pd_df(df, exp, sort=True))
@@ -118,20 +120,20 @@ class DatasetTests(unittest.TestCase):
         df = balance_updates.get_acc_updates(account_key="1", prev_update_cols=True)
         exp = pd.DataFrame(
             {
-                DataFields.BALANCE: [200.0, 100.0],
-                DataFields.DATE: pd.to_datetime(["2019-01-03", "2019-01-01"]),
-                DataFields.PREV_BALANCE: [100.0, None],
-                DataFields.PREV_DATE: pd.to_datetime(["2019-01-01", None]),
+                field_names.BALANCE: [200.0, 100.0],
+                field_names.DATE: pd.to_datetime(["2019-01-03", "2019-01-01"]),
+                field_names.PREV_BALANCE: [100.0, None],
+                field_names.PREV_DATE: pd.to_datetime(["2019-01-01", None]),
             }
         )
         self.assertTrue(compare_pd_df(df, exp, sort=True))
 
     def test_get_acc_transfers(self):
         bal_trans = BalanceTransfers.from_dict({
-            DataFields.FROM_ACCOUNT_KEY: ["1", "2", "2"],
-            DataFields.TO_ACCOUNT_KEY: ["2", "1", "3"],
-            DataFields.AMOUNT: [100.0, 200.0, 200.0],
-            DataFields.DATE: pd.to_datetime(["2019-01-01", "2019-01-02", "2019-01-03"]),
+            field_names.FROM_ACCOUNT_KEY: ["1", "2", "2"],
+            field_names.TO_ACCOUNT_KEY: ["2", "1", "3"],
+            field_names.AMOUNT: [100.0, 200.0, 200.0],
+            field_names.DATE: pd.to_datetime(["2019-01-01", "2019-01-02", "2019-01-03"]),
         })
 
         df = bal_trans.get_acc_transfers("1")
@@ -139,8 +141,8 @@ class DatasetTests(unittest.TestCase):
 
         exp = pd.DataFrame(
             {
-                DataFields.AMOUNT: [-100.0, 200.0],
-                DataFields.DATE: pd.to_datetime(["2019-01-01", "2019-01-02"]),
+                field_names.AMOUNT: [-100.0, 200.0],
+                field_names.DATE: pd.to_datetime(["2019-01-01", "2019-01-02"]),
             }
         )
         self.assertTrue(compare_pd_df(df, exp, sort=True))

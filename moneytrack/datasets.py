@@ -1,6 +1,5 @@
 import logging
-from collections import OrderedDict
-from typing import Dict, Union, Iterable, Optional, List, Type
+from typing import Dict, Union, Iterable, Optional, List, Type, Any
 
 import pandas as pd
 
@@ -8,6 +7,17 @@ from .config import Config
 from .utils import compare_pd_df
 
 log = logging.getLogger("datasets")
+field_names = Config.FieldNames
+
+
+class DataField:
+    DATE_TYPE = "date"
+
+    def __init__(self, name: str, dtype: Union[str, type], mandatory: bool = True, def_value: Any = None):
+        self.name = name
+        self.dtype = dtype
+        self.mandatory = mandatory
+        self.def_value = def_value
 
 
 class DataSource:
@@ -15,42 +25,56 @@ class DataSource:
     A base class that can used for any moneytrack data set.
     """
 
-    # Specify a dict of columns that *must* be in the DataSource and their type. If "date" is
+    # Specify a list of DataField that might be in the DataSource and their type. If "date" is
     # chosen as the type, the pd.to_datetime() function will be used to convert the input.
-    dtypes = None
-    DATE_TYPE = "date"
+    # If a DataField is specified as mandatory, it must be in the DataSource, or an exception is thrown.
+    dfields: List[DataField] = []
+
+    # List of field names that are NOT allowed in the DataSource
+    banned_cols: List[str] = []
 
     def __init__(self, df: pd.DataFrame):
         log.debug("Creating new {} object".format(self.__class__.__name__))
         self.df = self.validate_df(df)
 
     @classmethod
-    def mandatory_cols(cls) -> List[str]:
+    def get_mandatory_cols(cls) -> List[str]:
         """
         Returns a list of column names that are mandatory in the DataSource
         """
-        return list(cls.get_dtypes().keys())
+        return [f.name.upper() for f in cls.dfields if f.mandatory is True]
 
     @classmethod
-    def get_dtypes(cls):
-        return {k.upper(): v for k, v in cls.dtypes.items()}
+    def get_banned_cols(cls):
+        return [c.upper() for c in cls.banned_cols]
+
+    @classmethod
+    def get_dtypes(cls) -> Dict[str, Union[type, str]]:
+        return {f.name.upper(): f.dtype for f in cls.dfields}
 
     @classmethod
     def has_mandatory_cols(cls, df: pd.DataFrame) -> bool:
-        exp = set(cls.mandatory_cols())
+        exp = set(cls.get_mandatory_cols())
         cols = set(df.columns)
         return len(exp - cols) == 0
 
     @classmethod
+    def has_banned_cols(cls, df: pd.DataFrame) -> bool:
+        banned = set(cls.get_banned_cols())
+        cols = set(df.columns)
+        return len(banned & cols) == 0
+
+    @classmethod
     def coerce_dtypes(cls, df: pd.DataFrame) -> pd.DataFrame:
         for col, col_type in cls.get_dtypes().items():
-            try:
-                if col_type == cls.DATE_TYPE:
-                    df[col] = pd.to_datetime(df[col])
-                else:
-                    df[col] = df[col].astype(col_type)
-            except Exception:
-                raise TypeError("Cannot cast column '{}' to dtype={}".format(col, col_type))
+            if col in df.columns:
+                try:
+                    if col_type == DataField.DATE_TYPE:
+                        df[col] = pd.to_datetime(df[col])
+                    else:
+                        df[col] = df[col].astype(col_type)
+                except Exception:
+                    raise TypeError("Cannot cast column '{}' to dtype={}".format(col, col_type))
         return df
 
     @classmethod
@@ -61,7 +85,12 @@ class DataSource:
 
         # Check that all the required columns are there
         assert cls.has_mandatory_cols(df), "The DataFrame passed to {} should have columns {}, but has {}".format(
-            cls.__name__, cls.mandatory_cols(), df.columns
+            cls.__name__, cls.get_mandatory_cols(), df.columns
+        )
+
+        # Check that all the banned columns are not there
+        assert cls.has_banned_cols(df), "The DataFrame passed to {} should NOT have columns {}, but has {}".format(
+            cls.__name__, cls.get_banned_cols(), df.columns
         )
 
         # Cast all of the columns to their correct data types
@@ -78,10 +107,10 @@ class DataSource:
 
     @classmethod
     def get_dtypes_pandas(cls: "DataSource") -> Dict[str, Type]:
-        return {colnm: (dtype if dtype != cls.DATE_TYPE else str) for colnm, dtype in cls.get_dtypes().items()}
+        return {colnm: (dtype if dtype != DataField.DATE_TYPE else str) for colnm, dtype in cls.get_dtypes().items()}
 
     @classmethod
-    def read_csv(cls: "DataSource", filename: str, **kwargs) -> pd.DataFrame:
+    def read_csv(cls, filename: str, **kwargs) -> pd.DataFrame:
         try:
             df = pd.read_csv(filename, dtype=cls.get_dtypes_pandas(), **kwargs)
         except (KeyError, ValueError):
@@ -126,45 +155,30 @@ class DataSource:
         return self.__class__.__name__ + ":\n" + str(self.df)
 
 
-class DataFields:
-    # Core Dataset Fields
-    ACCOUNT_KEY = "ACCOUNT_KEY"
-    DATE = "DATE"
-    BALANCE = "BALANCE"
-    FROM_ACCOUNT_KEY = "FROM_ACCOUNT_KEY"
-    TO_ACCOUNT_KEY = "TO_ACCOUNT_KEY"
-    AMOUNT = "AMOUNT"
-
-    # Daily Summary Fields
-    INTEREST = "INTEREST"
-    TRANSFER = "TRANSFER"
-
-    # Others
-    PREV_BALANCE = "PREV_BALANCE"
-    PREV_DATE = "PREV_DATE"
-    INTEREST_RATE = "INTEREST_RATE"
-    CUM_INTEREST_RATE = "CUM_INTEREST_RATE"
-
-    START_DATE = "START_DATE"
-    END_DATE = "END_DATE"
-    START_BALANCE = "START_BALANCE"
-    END_BALANCE = "END_BALANCE"
-
-
 class Accounts(DataSource):
     """
     A list of accounts, identified by a unique account key.
     """
 
     # The data types for each column
-    dtypes = OrderedDict([
-        (DataFields.ACCOUNT_KEY, str),
-        ("ACCOUNT_NBR", str),
-        ("SORT_CODE", str),
-        ("COMPANY", str),
-        ("ACCOUNT_TYP", str),
-        ("ISA", bool),
-    ])
+    dfields = [
+        DataField(name=field_names.ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.ACCOUNT_NBR, dtype=str, mandatory=False),
+        DataField(name=field_names.SORT_CODE, dtype=str, mandatory=False),
+        DataField(name=field_names.COMPANY, dtype=str, mandatory=False),
+        DataField(name=field_names.ACCOUNT_TYP, dtype=str, mandatory=False),
+        DataField(name=field_names.ISA, dtype=bool, mandatory=False),
+        DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
+    ]
+
+    # Should not find these columns
+    banned_cols = [
+        field_names.DATE,
+        field_names.BALANCE,
+        field_names.TRANSFER,
+        field_names.TO_ACCOUNT_KEY,
+        field_names.FROM_ACCOUNT_KEY,
+    ]
 
     def __init__(self, df: pd.DataFrame):
         super(Accounts, self).__init__(df)
@@ -177,9 +191,9 @@ class Accounts(DataSource):
             Do not return the EXT (external) account, used to track payments into / out of savings
         :return: List[str]
         """
-        account_keys = self.df[DataFields.ACCOUNT_KEY].values.tolist()
+        account_keys = self.df[field_names.ACCOUNT_KEY].values.tolist()
         if without_ext:
-            account_keys = list(set(account_keys) - {Config.external_account_key})
+            account_keys = list(set(account_keys) - {Config.EXTERNAL_ACCOUNT_KEY})
         return account_keys
 
     def get_matching_account_keys(self, filters: Optional[Dict[str, Union[str, Iterable[str]]]] = None,
@@ -205,17 +219,25 @@ class Accounts(DataSource):
             return self.get_account_keys(without_ext)
 
         df_acc = self.get_df().copy(deep=False)
-        df_acc.columns = [c.upper() for c in df_acc.columns]
 
         for column, values in filters.items():
             if column.upper() not in df_acc.columns:
                 raise KeyError("The column {} is not in the Accounts data")
             if isinstance(values, str):
                 values = [values]
-            values = [v.upper() for v in values]
-            df_acc = df_acc[df_acc[column.upper()].str.upper().isin(values)]
+            else:
+                try:
+                    iter(values)
+                except TypeError:
+                    values = [values]
 
-        return df_acc[DataFields.ACCOUNT_KEY].values.tolist()
+            if isinstance(values[0], str):
+                values = [str(v).upper() for v in values]
+                df_acc = df_acc[df_acc[column.upper()].str.upper().isin(values)]
+            else:
+                df_acc = df_acc[df_acc[column.upper()].isin(values)]
+
+        return df_acc[field_names.ACCOUNT_KEY].values.tolist()
 
 
 class BalanceUpdates(DataSource):
@@ -225,18 +247,21 @@ class BalanceUpdates(DataSource):
     """
 
     # The data types for each column
-    dtypes = OrderedDict([
-        (DataFields.ACCOUNT_KEY, str),
-        (DataFields.BALANCE, float),
-        (DataFields.DATE, DataSource.DATE_TYPE),
-    ])
+    dfields = [
+        DataField(name=field_names.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
+        DataField(name=field_names.ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.BALANCE, dtype=float, mandatory=True),
+        DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
+    ]
+
+    banned_cols = [field_names.FROM_ACCOUNT_KEY, field_names.TO_ACCOUNT_KEY]
 
     def __init__(self, df):
         super(BalanceUpdates, self).__init__(df)
 
     def get_df_filtered(self, account_keys: List[str]) -> pd.DataFrame:
         df = self.get_df()
-        mask = df[DataFields.ACCOUNT_KEY].isin(account_keys)
+        mask = df[field_names.ACCOUNT_KEY].isin(account_keys)
         return df[mask]
 
     def get_acc_updates(self, account_key: str, prev_update_cols: bool = False) -> pd.DataFrame:
@@ -249,12 +274,12 @@ class BalanceUpdates(DataSource):
         :return: DataFrame of account updates
         """
         df = self.get_df()
-        df_acc = df[df[DataFields.ACCOUNT_KEY] == account_key][[DataFields.DATE, DataFields.BALANCE]].copy()
-        df_acc.sort_values(DataFields.DATE, ascending=True, inplace=True)
+        df_acc = df[df[field_names.ACCOUNT_KEY] == account_key][[field_names.DATE, field_names.BALANCE]].copy()
+        df_acc.sort_values(field_names.DATE, ascending=True, inplace=True)
 
         if prev_update_cols:
-            df_acc[DataFields.PREV_BALANCE] = df_acc[DataFields.BALANCE].shift(1)
-            df_acc[DataFields.PREV_DATE] = df_acc[DataFields.DATE].shift(1)
+            df_acc[field_names.PREV_BALANCE] = df_acc[field_names.BALANCE].shift(1)
+            df_acc[field_names.PREV_DATE] = df_acc[field_names.DATE].shift(1)
 
         return df_acc
 
@@ -265,19 +290,22 @@ class BalanceTransfers(DataSource):
     """
 
     # The data types for each column
-    dtypes = OrderedDict([
-        (DataFields.DATE, DataSource.DATE_TYPE),
-        (DataFields.AMOUNT, float),
-        (DataFields.FROM_ACCOUNT_KEY, str),
-        (DataFields.TO_ACCOUNT_KEY, str),
-    ])
+    dfields = [
+        DataField(name=field_names.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
+        DataField(name=field_names.AMOUNT, dtype=float, mandatory=True),
+        DataField(name=field_names.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
+    ]
+
+    banned_cols = [field_names.ACCOUNT_KEY]
 
     def __init__(self, df):
         super(BalanceTransfers, self).__init__(df)
 
     def get_df_filtered(self, account_keys: List[str]) -> pd.DataFrame:
         df = self.get_df()
-        mask = df[DataFields.FROM_ACCOUNT_KEY].isin(account_keys) | df[DataFields.TO_ACCOUNT_KEY].isin(account_keys)
+        mask = df[field_names.FROM_ACCOUNT_KEY].isin(account_keys) | df[field_names.TO_ACCOUNT_KEY].isin(account_keys)
         return df[mask]
 
     def get_acc_transfers_to(self, account_key: str) -> pd.DataFrame:
@@ -289,7 +317,7 @@ class BalanceTransfers(DataSource):
         :return: DataFrame of account transfers
         """
         df = self.get_df()
-        return df[df[DataFields.TO_ACCOUNT_KEY] == account_key][[DataFields.DATE, DataFields.AMOUNT]].copy()
+        return df[df[field_names.TO_ACCOUNT_KEY] == account_key][[field_names.DATE, field_names.AMOUNT]].copy()
 
     def get_acc_transfers_from(self, account_key: str, signed: bool = False) -> pd.DataFrame:
         """
@@ -301,9 +329,9 @@ class BalanceTransfers(DataSource):
         :return: DataFrame of account transfers
         """
         df = self.get_df()
-        df_t = df[df[DataFields.FROM_ACCOUNT_KEY] == account_key][[DataFields.DATE, DataFields.AMOUNT]].copy()
+        df_t = df[df[field_names.FROM_ACCOUNT_KEY] == account_key][[field_names.DATE, field_names.AMOUNT]].copy()
         if signed:
-            df_t[DataFields.AMOUNT] = -df_t[DataFields.AMOUNT]
+            df_t[field_names.AMOUNT] = -df_t[field_names.AMOUNT]
         return df_t
 
     def get_acc_transfers(self, account_key) -> pd.DataFrame:

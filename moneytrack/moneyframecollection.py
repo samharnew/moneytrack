@@ -4,9 +4,11 @@ from typing import Dict, Hashable, Optional, Callable, Union, List, Tuple, Any
 
 import pandas as pd
 
-from .datasets import DataFields
+from .config import Config
 from .moneyframe import MoneyFrame
 from .utils import coalesce
+
+field_names = Config.FieldNames
 
 
 class MoneyFrameCollection:
@@ -48,9 +50,6 @@ class MoneyFrameCollection:
         if len(self) == 0:
             return MoneyFrame.create_empty()
         return MoneyFrame.from_sum(self.moneyframes.values())
-
-    def keys(self):
-        return self.moneyframes.keys()
 
     def groupby(self,
                 by: Union[Callable[[Hashable], Hashable], Dict[Hashable, Hashable], List[Tuple[Hashable, Hashable]],
@@ -113,11 +112,23 @@ class MoneyFrameCollection:
 
         d = self.map_values(lambda x: x.calc_avg_interest_rate(**kwargs))
         if as_df:
-            df = pd.DataFrame(index=d.keys(), data=d.values(), columns=[DataFields.INTEREST_RATE])
+            df = pd.DataFrame(index=d.keys(), data=d.values(), columns=[field_names.INTEREST_RATE])
             if self.key_title is not None:
                 df.index.name = self.key_title
-            return df.sort_values(DataFields.INTEREST_RATE)
+            return df.sort_values(field_names.INTEREST_RATE)
         return d
+
+    def __getitem__(self, item) -> MoneyFrame:
+        return self.moneyframes[item]
+
+    def items(self):
+        return self.moneyframes.items()
+
+    def values(self):
+        return self.moneyframes.values()
+
+    def keys(self):
+        return self.moneyframes.keys()
 
     def to_df(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
               inc_cum_interest_rate: bool = False, inc_interest_rate: bool = False,
@@ -140,9 +151,9 @@ class MoneyFrameCollection:
             When True, return as a percentage rather than a fraction
         :return: pd.DataFrame
             DataFrame containing the daily account summary. It is indexed by date, and has the following columns:
-                - DataFields.INTEREST
-                - DataFields.TRANSFER
-                - DataFields.BALANCE
+                - field_names.INTEREST
+                - field_names.TRANSFER
+                - field_names.BALANCE
         """
         key_title = coalesce(self.key_title, "AGG_KEY")
         dfs = [
@@ -158,4 +169,4 @@ class MoneyFrameCollection:
             for key, mf in self.moneyframes.items()
         ]
 
-        return pd.concat(dfs).reset_index().set_index([DataFields.DATE, key_title])
+        return pd.concat(dfs).reset_index().set_index([field_names.DATE, key_title])
