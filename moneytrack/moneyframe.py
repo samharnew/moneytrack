@@ -6,9 +6,12 @@ from typing import Any, Optional, Tuple, Iterable, Union
 import numpy as np
 import pandas as pd
 
-from .datasets import DataField, BalanceUpdates, BalanceTransfers
+from .datasets import BalanceUpdates, BalanceTransfers
 from .utils import coalesce, assert_type, adr_to_ayr, calc_avg_interest_rate, calc_daily_balances_w_transfers, \
     dates_between, ayr_to_adr
+from .config import Config
+
+field_names = Config.FieldNames
 
 log = logging.getLogger("moneyframe")
 
@@ -22,46 +25,46 @@ class MoneyFrame:
     """
 
     expected_cols = [
-        DataField.INTEREST,
-        DataField.TRANSFER,
-        DataField.BALANCE,
+        field_names.INTEREST,
+        field_names.TRANSFER,
+        field_names.BALANCE,
     ]
 
     def __init__(self, df: pd.DataFrame):
         """
         Create a MoneyFrame from a pandas DataFrame. The following columns can be included:
 
-            - DataField.BALANCE
-            - DataField.DATE
-            - DataField.INTEREST
-            - DataField.TRANSFER
+            - field_names.BALANCE
+            - field_names.DATE
+            - field_names.INTEREST
+            - field_names.TRANSFER
 
         Additional columns may be provided, but will be ignored. If the DataFrame is already indexed by date,
-        the DataField.DATE field is not needed. The DataField.TRANSFER field is assumed to be zero if not
-        provided. If the DataField.INTEREST field is not provided, it is determined by considering the balance
+        the field_names.DATE field is not needed. The field_names.TRANSFER field is assumed to be zero if not
+        provided. If the field_names.INTEREST field is not provided, it is determined by considering the balance
         from the previous day, and any balance transfers into / out of the account.
 
         :param df: pd.DataFrame
         """
 
         # Check the DataFrame has all the columns
-        assert DataField.BALANCE in df.columns, "DataFrame must have column {}".format(DataField.BALANCE)
+        assert field_names.BALANCE in df.columns, "DataFrame must have column {}".format(field_names.BALANCE)
 
         # Make a copy to ensure the original data doesn't get changed.
         df = df.copy()
 
         # If transfers are not given, assume there are none
-        if DataField.TRANSFER not in df.columns:
-            df[DataField.TRANSFER] = 0.0
+        if field_names.TRANSFER not in df.columns:
+            df[field_names.TRANSFER] = 0.0
 
         # If daily interest is not given, calculate from daily balances and transfers
-        if DataField.INTEREST not in df.columns:
-            df[DataField.INTEREST] = (df[DataField.BALANCE] - df[DataField.TRANSFER] -
-                                      df[DataField.BALANCE].shift(1)).fillna(0.0)
+        if field_names.INTEREST not in df.columns:
+            df[field_names.INTEREST] = (df[field_names.BALANCE] - df[field_names.TRANSFER] -
+                                      df[field_names.BALANCE].shift(1)).fillna(0.0)
 
         # If the date isn't already the index column, make sure it is
-        if DataField.DATE in df.columns:
-            df = df.set_index(DataField.DATE)
+        if field_names.DATE in df.columns:
+            df = df.set_index(field_names.DATE)
 
         # Make sure we only have the columns needed
         df = df[self.expected_cols]
@@ -104,11 +107,11 @@ class MoneyFrame:
 
         if (start_date < self.min_date() or end_date > self.max_date()) and extrapolate:
             # Outer join a list of all dates in the range to fill in any gaps
-            dates = pd.DataFrame({DataField.DATE: pd.date_range(start_date, end_date)}).set_index(DataField.DATE)
+            dates = pd.DataFrame({field_names.DATE: pd.date_range(start_date, end_date)}).set_index(field_names.DATE)
             df = dates.join(self.df, how="outer").sort_index(ascending=True)
 
             # Extrapolate first/last balances backwards/forwards
-            df[DataField.BALANCE] = df[DataField.BALANCE].ffill().bfill()
+            df[field_names.BALANCE] = df[field_names.BALANCE].ffill().bfill()
 
             # Inner join to select only the range needed. Fill in missing transfer/interest values with 0.
             df = df.loc[start_date:end_date].fillna(0.0)
@@ -138,10 +141,10 @@ class MoneyFrame:
             When True, return as a percentage rather than a fraction
         :return: pd.DataFrame
             DataFrame containing the daily account summary. It is indexed by date, and has the following columns:
-                - DataField.INTEREST
-                - DataField.TRANSFER
-                - DataField.BALANCE
-                - DataField.ACCOUNT_KEY [optional]
+                - field_names.INTEREST
+                - field_names.TRANSFER
+                - field_names.BALANCE
+                - field_names.ACCOUNT_KEY [optional]
         """
 
         # Check that the inputs are valid
@@ -158,9 +161,9 @@ class MoneyFrame:
 
         df = self.df.copy(deep=False)
         if inc_interest_rate:
-            df[DataField.INTEREST_RATE] = self._calc_interest_rate(as_ayr=as_ayr, as_prcnt=as_prcnt)
+            df[field_names.INTEREST_RATE] = self._calc_interest_rate(as_ayr=as_ayr, as_prcnt=as_prcnt)
         if inc_cum_interest_rate:
-            df[DataField.CUM_INTEREST_RATE] = self._calc_cum_interest_rate(as_ayr=as_ayr, as_prcnt=as_prcnt)
+            df[field_names.CUM_INTEREST_RATE] = self._calc_cum_interest_rate(as_ayr=as_ayr, as_prcnt=as_prcnt)
         return df
 
     def is_zombie(self, **kwargs):
@@ -181,22 +184,29 @@ class MoneyFrame:
 
     def get_daily_interest(self, **kwargs) -> pd.Series:
         """Amount of interest added to the account each day, indexed by date"""
-        return self.to_df(**kwargs)[DataField.INTEREST]
+        return self.to_df(**kwargs)[field_names.INTEREST]
 
     def get_daily_balance(self, **kwargs) -> pd.Series:
         """Account balance on each day *after* any interest and balance transfers are applied, indexed by date"""
-        return self.to_df(**kwargs)[DataField.BALANCE]
+        return self.to_df(**kwargs)[field_names.BALANCE]
 
     def get_daily_transfers(self, **kwargs) -> pd.Series:
         """Transfers in/out of the account each day, indexed by date."""
-        return self.to_df(**kwargs)[DataField.TRANSFER]
+        return self.to_df(**kwargs)[field_names.TRANSFER]
 
     def get_daily_interest_rate(self, **kwargs) -> pd.Series:
         """Series of the daily interest rate, indexed by date."""
-        return self.to_df(inc_interest_rate=True, **kwargs)[DataField.INTEREST_RATE]
+        return self.to_df(inc_interest_rate=True, **kwargs)[field_names.INTEREST_RATE]
 
     def get_cumulative_interest_rate(self, **kwargs) -> pd.Series:
-        return self.to_df(inc_cum_interest_rate=True, **kwargs)[DataField.CUM_INTEREST_RATE]
+        return self.to_df(inc_cum_interest_rate=True, **kwargs)[field_names.CUM_INTEREST_RATE]
+
+    def get_metric(self, name, **kwargs) -> pd.Series:
+        if name == field_names.BALANCE: return self.get_daily_balance(**kwargs)
+        if name == field_names.TRANSFER: return self.get_daily_transfers(**kwargs)
+        if name == field_names.INTEREST_RATE: return self.get_daily_interest_rate(**kwargs)
+        if name == field_names.CUM_INTEREST_RATE: return self.get_cumulative_interest_rate(**kwargs)
+        if name == field_names.INTEREST: return self.get_daily_interest(**kwargs)
 
     @classmethod
     def _interest_rate_conversions(cls, adr: np.array, as_ayr: bool = True, as_prcnt: bool = True) -> np.array:
@@ -227,7 +237,7 @@ class MoneyFrame:
         :return: pd.Series
             Daily interest rate. The Series is indexed by date
         """
-        adr = self.df[DataField.INTEREST] / self.df[DataField.BALANCE].shift(1)
+        adr = self.df[field_names.INTEREST] / self.df[field_names.BALANCE].shift(1)
         return self._interest_rate_conversions(adr, as_ayr, as_prcnt)
 
     @classmethod
@@ -236,7 +246,7 @@ class MoneyFrame:
         Calculate the average interest rate between two dates.
 
         :param df: pd.DataFrame
-            Pandas DataFrame indexed by date with columns DataField.BALANCE, DataField.INTEREST, DataField.TRANSFERS
+            Pandas DataFrame indexed by date with columns field_names.BALANCE, field_names.INTEREST, field_names.TRANSFERS
         :param as_ayr: bool
             When True, return the average yearly rate, rather than the average daily rate
         :param as_prcnt: bool
@@ -253,14 +263,14 @@ class MoneyFrame:
         df_sel = df.loc[start_date:end_date]
 
         # Starting balance before any transfers
-        start_bal = df_sel.loc[start_date, DataField.BALANCE] - df_sel.loc[start_date, DataField.TRANSFER]
+        start_bal = df_sel.loc[start_date, field_names.BALANCE] - df_sel.loc[start_date, field_names.TRANSFER]
         # Final balance after all transfers
-        end_bal = df_sel.loc[end_date, DataField.BALANCE]
+        end_bal = df_sel.loc[end_date, field_names.BALANCE]
 
         # Get the transfers that went into / out of the specified accounts, and on which day (day 0 == start_date)
-        mask = df_sel[DataField.TRANSFER] != 0.0
+        mask = df_sel[field_names.TRANSFER] != 0.0
         trans_days = np.arange(len(df_sel))[mask]
-        trans_amts = df_sel[DataField.TRANSFER].values[mask]
+        trans_amts = df_sel[field_names.TRANSFER].values[mask]
         num_days = (end_date - start_date).days
 
         # Determine the interest rate
@@ -324,7 +334,7 @@ class MoneyFrame:
         start_date = self.min_date()
         adr = np.array([
             self._calc_avg_interest_rate(self.df, start_date=start_date, end_date=end_date)
-            for end_date in self.df.index.get_level_values(DataField.DATE)
+            for end_date in self.df.index.get_level_values(field_names.DATE)
         ])
         return self._interest_rate_conversions(adr, as_ayr=as_ayr, as_prcnt=as_prcnt)
 
@@ -386,11 +396,11 @@ class MoneyFrame:
         log.debug("Updates from {} : {} -> {} : {}".format(start_date, start_bal, end_date, end_bal))
 
         # Get all the transfers from/to the account that happened between the period
-        transfers = bal_transfers_df[(bal_transfers_df[DataField.DATE] > start_date) &
-                                     (bal_transfers_df[DataField.DATE] <= end_date)]
-        trans_days = (transfers[DataField.DATE] - start_date).dt.days
+        transfers = bal_transfers_df[(bal_transfers_df[field_names.DATE] > start_date) &
+                                     (bal_transfers_df[field_names.DATE] <= end_date)]
+        trans_days = (transfers[field_names.DATE] - start_date).dt.days
         num_days = (end_date - start_date).days
-        trans_amts = transfers[DataField.AMOUNT]
+        trans_amts = transfers[field_names.AMOUNT]
 
         # Estimate the interest rate during the period
         log.debug("Calculating daily interest rate")
@@ -405,7 +415,7 @@ class MoneyFrame:
         )
 
         dates = dates_between(start_date, end_date)[:-1]
-        return pd.DataFrame({DataField.DATE: dates, DataField.BALANCE: balances})
+        return pd.DataFrame({field_names.DATE: dates, field_names.BALANCE: balances})
 
     @classmethod
     def _est_daily_balances(cls, balance_updates: BalanceUpdates, balance_transfers: BalanceTransfers,
@@ -428,84 +438,84 @@ class MoneyFrame:
 
         # Get balance updates and transfers for the specified account_key
         bal_updates_df = balance_updates.get_acc_updates(account_key=account_key) \
-            .sort_values(DataField.DATE, ascending=True)
+            .sort_values(field_names.DATE, ascending=True)
         bal_transfers_df = balance_transfers.get_acc_transfers(account_key=account_key) \
-            .sort_values(DataField.DATE, ascending=True)
+            .sort_values(field_names.DATE, ascending=True)
 
         # If there isn't any information, just return a DataFrame with today's date and zero balance
         if len(bal_updates_df) == 0 and len(bal_transfers_df) == 0:
             today = pd.to_datetime(datetime.now().date())
             return pd.DataFrame(
-                [{DataField.BALANCE: 0.0, DataField.DATE: today}]
-            ).set_index(DataField.DATE)[DataField.BALANCE]
+                [{field_names.BALANCE: 0.0, field_names.DATE: today}]
+            ).set_index(field_names.DATE)[field_names.BALANCE]
 
         # If there are no balance updates, assume no interest, so that the latest balance update will be sum(transfers)
         if len(bal_updates_df) == 0:
-            last_bal_trans_date = bal_transfers_df[DataField.DATE].iloc[-1]
+            last_bal_trans_date = bal_transfers_df[field_names.DATE].iloc[-1]
             bal_updates_df = pd.DataFrame([{
-                DataField.DATE: last_bal_trans_date,
-                DataField.BALANCE: bal_transfers_df[DataField.AMOUNT].sum()
+                field_names.DATE: last_bal_trans_date,
+                field_names.BALANCE: bal_transfers_df[field_names.AMOUNT].sum()
             }])
 
         if len(bal_transfers_df) > 0:
             # If the first balance transfer happens before the first update, assume that the transfer was the opening
             # payment, and the previous balance was zero
-            first_update_date = bal_updates_df[DataField.DATE].iloc[0]
-            first_bal_trans_date = bal_transfers_df[DataField.DATE].iloc[0]
+            first_update_date = bal_updates_df[field_names.DATE].iloc[0]
+            first_bal_trans_date = bal_transfers_df[field_names.DATE].iloc[0]
 
             if first_bal_trans_date <= first_update_date:
                 new_row = {
-                    DataField.DATE: first_bal_trans_date - pd.Timedelta(days=1),
-                    DataField.BALANCE: 0.0
+                    field_names.DATE: first_bal_trans_date - pd.Timedelta(days=1),
+                    field_names.BALANCE: 0.0
                 }
                 bal_updates_df = bal_updates_df.append(pd.DataFrame([new_row]), ignore_index=True)
-                bal_updates_df.sort_values(DataField.DATE, ascending=True, inplace=True)
+                bal_updates_df.sort_values(field_names.DATE, ascending=True, inplace=True)
 
             # If balance transfers happen after the last update, assume zero interest after the last update
-            last_update_amt = bal_updates_df[DataField.BALANCE].iloc[-1]
-            last_update_date = bal_updates_df[DataField.DATE].iloc[-1]
-            last_bal_trans_date = bal_transfers_df[DataField.DATE].iloc[-1]
+            last_update_amt = bal_updates_df[field_names.BALANCE].iloc[-1]
+            last_update_date = bal_updates_df[field_names.DATE].iloc[-1]
+            last_bal_trans_date = bal_transfers_df[field_names.DATE].iloc[-1]
 
             if last_bal_trans_date > last_update_date:
                 tot_transfers = bal_transfers_df.loc[
-                    bal_transfers_df[DataField.DATE] > last_update_date, DataField.AMOUNT
+                    bal_transfers_df[field_names.DATE] > last_update_date, field_names.AMOUNT
                 ].sum()
                 new_row = {
-                    DataField.DATE: last_bal_trans_date,
-                    DataField.BALANCE: last_update_amt + tot_transfers
+                    field_names.DATE: last_bal_trans_date,
+                    field_names.BALANCE: last_update_amt + tot_transfers
                 }
                 bal_updates_df = bal_updates_df.append(pd.DataFrame([new_row]), ignore_index=True)
-                bal_updates_df.sort_values(DataField.DATE, ascending=True, inplace=True)
+                bal_updates_df.sort_values(field_names.DATE, ascending=True, inplace=True)
 
         # If there is only one balance update, just return the single data point
         if len(bal_updates_df) == 1:
-            return bal_updates_df.set_index(DataField.DATE)[DataField.BALANCE]
+            return bal_updates_df.set_index(field_names.DATE)[field_names.BALANCE]
 
         # Extrapolate the daily balances between each update.
         # First reshape the data to obtain consecutive balance updates
-        bal_updates_df[DataField.START_BALANCE] = bal_updates_df[DataField.BALANCE].shift(1)
-        bal_updates_df[DataField.START_DATE] = bal_updates_df[DataField.DATE].shift(1)
-        bal_updates_df[DataField.END_BALANCE] = bal_updates_df[DataField.BALANCE]
-        bal_updates_df[DataField.END_DATE] = bal_updates_df[DataField.DATE]
+        bal_updates_df[field_names.START_BALANCE] = bal_updates_df[field_names.BALANCE].shift(1)
+        bal_updates_df[field_names.START_DATE] = bal_updates_df[field_names.DATE].shift(1)
+        bal_updates_df[field_names.END_BALANCE] = bal_updates_df[field_names.BALANCE]
+        bal_updates_df[field_names.END_DATE] = bal_updates_df[field_names.DATE]
         bal_updates_df = bal_updates_df.dropna()
 
         log.debug("Looping over balance updates")
         dfs = [
             cls._est_daily_balances_between_updates(
-                start_date=row[DataField.START_DATE],
-                end_date=row[DataField.END_DATE],
-                start_bal=row[DataField.START_BALANCE],
-                end_bal=row[DataField.END_BALANCE],
+                start_date=row[field_names.START_DATE],
+                end_date=row[field_names.END_DATE],
+                start_bal=row[field_names.START_BALANCE],
+                end_bal=row[field_names.END_BALANCE],
                 bal_transfers_df=bal_transfers_df,
             )
             for _, row in bal_updates_df.iterrows()
         ]
 
         log.debug("Adding most recent balance update")
-        dfs.append(bal_updates_df.tail(1)[[DataField.DATE, DataField.BALANCE]])
+        dfs.append(bal_updates_df.tail(1)[[field_names.DATE, field_names.BALANCE]])
 
         log.debug("Returning daily balance updates")
-        return pd.concat(dfs).sort_values(DataField.DATE).set_index(DataField.DATE)[DataField.BALANCE]
+        return pd.concat(dfs).sort_values(field_names.DATE).set_index(field_names.DATE)[field_names.BALANCE]
 
     @classmethod
     def _est_daily_history_df(cls, balance_updates: BalanceUpdates, balance_transfers: BalanceTransfers,
@@ -531,16 +541,16 @@ class MoneyFrame:
 
         log.debug("getting daily transfers")
         bal_transfers_df = balance_transfers.get_acc_transfers(account_key=account_key)
-        bal_transfers_df = bal_transfers_df.groupby(DataField.DATE)[DataField.AMOUNT].sum()
-        daily_trans = bal_transfers_df.rename(DataField.TRANSFER)
+        bal_transfers_df = bal_transfers_df.groupby(field_names.DATE)[field_names.AMOUNT].sum()
+        daily_trans = bal_transfers_df.rename(field_names.TRANSFER)
 
         daily_summary = pd.concat([daily_balances, daily_trans], axis=1).fillna(0.0)
 
         log.debug("determining interest")
-        daily_summary[DataField.INTEREST] = (
-                daily_summary[DataField.BALANCE] -
-                daily_summary[DataField.BALANCE].shift(1) -
-                daily_summary[DataField.TRANSFER]
+        daily_summary[field_names.INTEREST] = (
+                daily_summary[field_names.BALANCE] -
+                daily_summary[field_names.BALANCE].shift(1) -
+                daily_summary[field_names.TRANSFER]
         ).fillna(0.0)
 
         return daily_summary
@@ -617,12 +627,12 @@ class MoneyFrame:
         balances = calc_daily_balances_w_transfers(start_bal=start_bal, num_days=num_days, daily_rate=adr)
 
         # Return MoneyFrame
-        df = pd.DataFrame({DataField.DATE: dates, DataField.BALANCE: balances})
+        df = pd.DataFrame({field_names.DATE: dates, field_names.BALANCE: balances})
         return MoneyFrame(df)
 
     @classmethod
     def create_empty(cls):
-        return MoneyFrame(pd.DataFrame({DataField.DATE: [], DataField.BALANCE: []}))
+        return MoneyFrame(pd.DataFrame({field_names.DATE: [], field_names.BALANCE: []}))
 
     def __add__(self, other):
         return MoneyFrame.from_sum([self, other])
@@ -631,25 +641,25 @@ class MoneyFrame:
         return len(self) == len(other) and np.all(self.df.index == other.df.index) and \
                np.allclose(self.df.values, other.df.values)
 
+    def __len__(self):
+        return len(self.df)
+
     def __getitem__(self, x) -> "MoneyFrame":
 
         if isinstance(x, slice):
-            assert x.step is None, "step parameter is not accepted when slicing MoneyFrame"
+            assert x.step is None, "step parameter is not accepted when slicing a MoneyFrame"
             if isinstance(coalesce(x.start, 0), int) and isinstance(coalesce(x.stop, -1), int):
                 start_ix, end_ix = coalesce(x.start, 0), coalesce(x.stop, -1)
-                dah = MoneyFrame(self.df.iloc[start_ix:end_ix])
+                return MoneyFrame(self.df.iloc[start_ix:end_ix])
             else:
                 start_date = pd.to_datetime(coalesce(x.start, self.min_date()))
                 end_date = pd.to_datetime(coalesce(x.stop, self.max_date()))
                 assert start_date <= end_date, "Must have start_date <= end_date"
-                dah = self.get_slice(start_date, end_date, extrapolate=False)
+                return self.get_slice(start_date, end_date, extrapolate=False)
         elif isinstance(x, int):
-            dah = MoneyFrame(self.df.iloc[x:x + 1])
+            return MoneyFrame(self.df.iloc[x:x + 1])
+        elif isinstance(x, str) and x in self.df.columns:
+            return self.df[x].values
         else:
             date = pd.to_datetime(x)
-            dah = self.get_slice(date, date, extrapolate=False)
-
-        return dah
-
-    def __len__(self):
-        return len(self.df)
+            return self.get_slice(date, date, extrapolate=False)

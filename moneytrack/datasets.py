@@ -7,48 +7,18 @@ from .config import Config
 from .utils import compare_pd_df
 
 log = logging.getLogger("datasets")
+field_names = Config.FieldNames
 
 
 class DataField:
+
+    DATE_TYPE = "date"
 
     def __init__(self, name: str, dtype: Union[str, type], mandatory: bool = True, def_value: Any = None):
         self.name = name
         self.dtype = dtype
         self.mandatory = mandatory
         self.def_value = def_value
-
-    # Core Dataset Fields
-    ACCOUNT_KEY = "ACCOUNT_KEY"
-    DATE = "DATE"
-    BALANCE = "BALANCE"
-    FROM_ACCOUNT_KEY = "FROM_ACCOUNT_KEY"
-    TO_ACCOUNT_KEY = "TO_ACCOUNT_KEY"
-    AMOUNT = "AMOUNT"
-    DESCRIPTION = "DESCRIPTION"
-
-    # Account Details
-    ACCOUNT_NBR = "ACCOUNT_NBR"
-    SORT_CODE = "SORT_CODE"
-    COMPANY = "COMPANY"
-    ACCOUNT_TYP = "ACCOUNT_TYP"
-    ISA = "ISA"
-
-    # Daily Summary Fields
-    INTEREST = "INTEREST"
-    TRANSFER = "TRANSFER"
-
-    # Others
-    PREV_BALANCE = "PREV_BALANCE"
-    PREV_DATE = "PREV_DATE"
-    INTEREST_RATE = "INTEREST_RATE"
-    CUM_INTEREST_RATE = "CUM_INTEREST_RATE"
-
-    START_DATE = "START_DATE"
-    END_DATE = "END_DATE"
-    START_BALANCE = "START_BALANCE"
-    END_BALANCE = "END_BALANCE"
-
-    DATE_TYPE = "date"
 
 
 class DataSource:
@@ -141,7 +111,7 @@ class DataSource:
         return {colnm: (dtype if dtype != DataField.DATE_TYPE else str) for colnm, dtype in cls.get_dtypes().items()}
 
     @classmethod
-    def read_csv(cls: "DataSource", filename: str, **kwargs) -> pd.DataFrame:
+    def read_csv(cls, filename: str, **kwargs) -> pd.DataFrame:
         try:
             df = pd.read_csv(filename, dtype=cls.get_dtypes_pandas(), **kwargs)
         except (KeyError, ValueError):
@@ -193,22 +163,22 @@ class Accounts(DataSource):
 
     # The data types for each column
     dfields = [
-        DataField(name=DataField.ACCOUNT_KEY, dtype=str, mandatory=True),
-        DataField(name=DataField.ACCOUNT_NBR, dtype=str, mandatory=False),
-        DataField(name=DataField.SORT_CODE, dtype=str, mandatory=False),
-        DataField(name=DataField.COMPANY, dtype=str, mandatory=False),
-        DataField(name=DataField.ACCOUNT_TYP, dtype=str, mandatory=False),
-        DataField(name=DataField.ISA, dtype=bool, mandatory=False),
-        DataField(name=DataField.DESCRIPTION, dtype=bool, mandatory=False),
+        DataField(name=field_names.ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.ACCOUNT_NBR, dtype=str, mandatory=False),
+        DataField(name=field_names.SORT_CODE, dtype=str, mandatory=False),
+        DataField(name=field_names.COMPANY, dtype=str, mandatory=False),
+        DataField(name=field_names.ACCOUNT_TYP, dtype=str, mandatory=False),
+        DataField(name=field_names.ISA, dtype=bool, mandatory=False),
+        DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
     ]
 
     # Should not find these columns
     banned_cols = [
-        DataField.DATE,
-        DataField.BALANCE,
-        DataField.TRANSFER,
-        DataField.TO_ACCOUNT_KEY,
-        DataField.FROM_ACCOUNT_KEY,
+        field_names.DATE,
+        field_names.BALANCE,
+        field_names.TRANSFER,
+        field_names.TO_ACCOUNT_KEY,
+        field_names.FROM_ACCOUNT_KEY,
     ]
 
     def __init__(self, df: pd.DataFrame):
@@ -222,9 +192,9 @@ class Accounts(DataSource):
             Do not return the EXT (external) account, used to track payments into / out of savings
         :return: List[str]
         """
-        account_keys = self.df[DataField.ACCOUNT_KEY].values.tolist()
+        account_keys = self.df[field_names.ACCOUNT_KEY].values.tolist()
         if without_ext:
-            account_keys = list(set(account_keys) - {Config.external_account_key})
+            account_keys = list(set(account_keys) - {Config.EXTERNAL_ACCOUNT_KEY})
         return account_keys
 
     def get_matching_account_keys(self, filters: Optional[Dict[str, Union[str, Iterable[str]]]] = None,
@@ -268,7 +238,7 @@ class Accounts(DataSource):
             else:
                 df_acc = df_acc[df_acc[column.upper()].isin(values)]
 
-        return df_acc[DataField.ACCOUNT_KEY].values.tolist()
+        return df_acc[field_names.ACCOUNT_KEY].values.tolist()
 
 
 class BalanceUpdates(DataSource):
@@ -279,20 +249,20 @@ class BalanceUpdates(DataSource):
 
     # The data types for each column
     dfields = [
-        DataField(name=DataField.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
-        DataField(name=DataField.ACCOUNT_KEY, dtype=str, mandatory=True),
-        DataField(name=DataField.BALANCE, dtype=float, mandatory=True),
-        DataField(name=DataField.DESCRIPTION, dtype=bool, mandatory=False),
+        DataField(name=field_names.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
+        DataField(name=field_names.ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.BALANCE, dtype=float, mandatory=True),
+        DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
     ]
 
-    banned_cols = [DataField.FROM_ACCOUNT_KEY, DataField.TO_ACCOUNT_KEY]
+    banned_cols = [field_names.FROM_ACCOUNT_KEY, field_names.TO_ACCOUNT_KEY]
 
     def __init__(self, df):
         super(BalanceUpdates, self).__init__(df)
 
     def get_df_filtered(self, account_keys: List[str]) -> pd.DataFrame:
         df = self.get_df()
-        mask = df[DataField.ACCOUNT_KEY].isin(account_keys)
+        mask = df[field_names.ACCOUNT_KEY].isin(account_keys)
         return df[mask]
 
     def get_acc_updates(self, account_key: str, prev_update_cols: bool = False) -> pd.DataFrame:
@@ -305,12 +275,12 @@ class BalanceUpdates(DataSource):
         :return: DataFrame of account updates
         """
         df = self.get_df()
-        df_acc = df[df[DataField.ACCOUNT_KEY] == account_key][[DataField.DATE, DataField.BALANCE]].copy()
-        df_acc.sort_values(DataField.DATE, ascending=True, inplace=True)
+        df_acc = df[df[field_names.ACCOUNT_KEY] == account_key][[field_names.DATE, field_names.BALANCE]].copy()
+        df_acc.sort_values(field_names.DATE, ascending=True, inplace=True)
 
         if prev_update_cols:
-            df_acc[DataField.PREV_BALANCE] = df_acc[DataField.BALANCE].shift(1)
-            df_acc[DataField.PREV_DATE] = df_acc[DataField.DATE].shift(1)
+            df_acc[field_names.PREV_BALANCE] = df_acc[field_names.BALANCE].shift(1)
+            df_acc[field_names.PREV_DATE] = df_acc[field_names.DATE].shift(1)
 
         return df_acc
 
@@ -322,21 +292,21 @@ class BalanceTransfers(DataSource):
 
     # The data types for each column
     dfields = [
-        DataField(name=DataField.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
-        DataField(name=DataField.AMOUNT, dtype=float, mandatory=True),
-        DataField(name=DataField.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
-        DataField(name=DataField.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
-        DataField(name=DataField.DESCRIPTION, dtype=bool, mandatory=False),
+        DataField(name=field_names.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
+        DataField(name=field_names.AMOUNT, dtype=float, mandatory=True),
+        DataField(name=field_names.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
     ]
 
-    banned_cols = [DataField.ACCOUNT_KEY]
+    banned_cols = [field_names.ACCOUNT_KEY]
 
     def __init__(self, df):
         super(BalanceTransfers, self).__init__(df)
 
     def get_df_filtered(self, account_keys: List[str]) -> pd.DataFrame:
         df = self.get_df()
-        mask = df[DataField.FROM_ACCOUNT_KEY].isin(account_keys) | df[DataField.TO_ACCOUNT_KEY].isin(account_keys)
+        mask = df[field_names.FROM_ACCOUNT_KEY].isin(account_keys) | df[field_names.TO_ACCOUNT_KEY].isin(account_keys)
         return df[mask]
 
     def get_acc_transfers_to(self, account_key: str) -> pd.DataFrame:
@@ -348,7 +318,7 @@ class BalanceTransfers(DataSource):
         :return: DataFrame of account transfers
         """
         df = self.get_df()
-        return df[df[DataField.TO_ACCOUNT_KEY] == account_key][[DataField.DATE, DataField.AMOUNT]].copy()
+        return df[df[field_names.TO_ACCOUNT_KEY] == account_key][[field_names.DATE, field_names.AMOUNT]].copy()
 
     def get_acc_transfers_from(self, account_key: str, signed: bool = False) -> pd.DataFrame:
         """
@@ -360,9 +330,9 @@ class BalanceTransfers(DataSource):
         :return: DataFrame of account transfers
         """
         df = self.get_df()
-        df_t = df[df[DataField.FROM_ACCOUNT_KEY] == account_key][[DataField.DATE, DataField.AMOUNT]].copy()
+        df_t = df[df[field_names.FROM_ACCOUNT_KEY] == account_key][[field_names.DATE, field_names.AMOUNT]].copy()
         if signed:
-            df_t[DataField.AMOUNT] = -df_t[DataField.AMOUNT]
+            df_t[field_names.AMOUNT] = -df_t[field_names.AMOUNT]
         return df_t
 
     def get_acc_transfers(self, account_key) -> pd.DataFrame:

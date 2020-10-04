@@ -7,8 +7,11 @@ from .datasets import DataField, Accounts, BalanceUpdates, BalanceTransfers, Con
 from .moneyframe import MoneyFrame
 from .moneyframecollection import MoneyFrameCollection
 from .utils import assert_type
+from .config import Config
 
 log = logging.getLogger("core")
+config = Config
+field_names = config.FieldNames
 
 
 class MoneyData(MoneyFrameCollection):
@@ -31,7 +34,7 @@ class MoneyData(MoneyFrameCollection):
 
         assert_type(accounts, Accounts)
         assert_type(mf_collection, MoneyFrameCollection)
-        assert mf_collection.key_title == DataField.ACCOUNT_KEY, \
+        assert mf_collection.key_title == field_names.ACCOUNT_KEY, \
             "The keys of the MoneyFrameCollection should be account keys"
 
         super(MoneyData, self).__init__(mf_collection.moneyframes, mf_collection.key_title)
@@ -43,8 +46,8 @@ class MoneyData(MoneyFrameCollection):
 
         :param filters: Optional[Dict[str, Union[str, List[str]]]]
             Optionally provide filters to be applied e.g.
-                - {DataField.ACCOUNT_KEY: "TSB"}
-                - {DataField.ACCOUNT_KEY: ["TSB", "LLOYDS"], DataField.ACCOUNT_TYPE: "CURRENT"}
+                - {field_names.ACCOUNT_KEY: "TSB"}
+                - {field_names.ACCOUNT_KEY: ["TSB", "LLOYDS"], field_names.ACCOUNT_TYPE: "CURRENT"}
         :return: MoneyData
             A filtered copy of MoneyData
         """
@@ -58,14 +61,14 @@ class MoneyData(MoneyFrameCollection):
     def groupby_accounts(self, by: Union[bool, str] = True) -> MoneyFrameCollection:
         """
         Aggregate the dictionary containing account histories. Can be aggregated by any column in the Accounts data
-        e.g. passing agg=DataField.ACCOUNT_TYPE
+        e.g. passing agg=field_names.ACCOUNT_TYPE
 
-        Alternatively False can be passed to do no aggregation (i.e. aggregated by DataField.ACCOUNT_KEY), or True
+        Alternatively False can be passed to do no aggregation (i.e. aggregated by field_names.ACCOUNT_KEY), or True
         can be passed to aggregate ALL accounts.
 
         :param by: Union[bool, str]
             How to aggregate the data e.g.
-                - DataField.ACCOUNT_TYPE: will aggregate by account type
+                - field_names.ACCOUNT_TYPE: will aggregate by account type
                 - False: will perform no aggregation
                 - True: will aggregate all the accounts
         :return: MoneyFrameCollection
@@ -79,7 +82,7 @@ class MoneyData(MoneyFrameCollection):
         assert_type(by, str)
         by = by.upper()
 
-        if by == DataField.ACCOUNT_KEY.upper():
+        if by == field_names.ACCOUNT_KEY.upper():
             return self
 
         df_acc = self.accounts.get_df().copy()
@@ -87,7 +90,7 @@ class MoneyData(MoneyFrameCollection):
         df_acc.columns = [c.upper() for c in df_acc.columns]
 
         # Create dictionary that maps each account key to group
-        keys = df_acc[DataField.ACCOUNT_KEY].str.upper().values
+        keys = df_acc[field_names.ACCOUNT_KEY].str.upper().values
         values = df_acc[by].values
 
         d = dict(zip(keys, values))
@@ -116,7 +119,7 @@ class MoneyData(MoneyFrameCollection):
                 acc_key
             )
             for acc_key in accounts.get_account_keys()
-        }, DataField.ACCOUNT_KEY)
+        }, field_names.ACCOUNT_KEY)
 
         return cls(accounts, mf_collection)
 
