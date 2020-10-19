@@ -1,5 +1,7 @@
 import logging
 from typing import Dict, Union, Iterable, Optional, List, Type, Any
+import glob
+import os
 
 import pandas as pd
 
@@ -28,45 +30,45 @@ class DataSource:
     # Specify a list of DataField that might be in the DataSource and their type. If "date" is
     # chosen as the type, the pd.to_datetime() function will be used to convert the input.
     # If a DataField is specified as mandatory, it must be in the DataSource, or an exception is thrown.
-    dfields: List[DataField] = []
+    fields: List[DataField] = []
 
     # List of field names that are NOT allowed in the DataSource
-    banned_cols: List[str] = []
+    forbidden_field_names: List[str] = []
 
     def __init__(self, df: pd.DataFrame):
         log.debug("Creating new {} object".format(self.__class__.__name__))
         self.df = self.validate_df(df)
 
     @classmethod
-    def get_mandatory_cols(cls) -> List[str]:
+    def get_mandatory_field_names(cls) -> List[str]:
         """
         Returns a list of column names that are mandatory in the DataSource
         """
-        return [f.name.upper() for f in cls.dfields if f.mandatory is True]
+        return [f.name.upper() for f in cls.fields if f.mandatory is True]
 
     @classmethod
-    def get_banned_cols(cls):
-        return [c.upper() for c in cls.banned_cols]
+    def get_forbidden_field_names(cls):
+        return [c.upper() for c in cls.forbidden_field_names]
 
     @classmethod
-    def get_dtypes(cls) -> Dict[str, Union[type, str]]:
-        return {f.name.upper(): f.dtype for f in cls.dfields}
+    def get_field_dtypes(cls) -> Dict[str, Union[type, str]]:
+        return {f.name.upper(): f.dtype for f in cls.fields}
 
     @classmethod
     def has_mandatory_cols(cls, df: pd.DataFrame) -> bool:
-        exp = set(cls.get_mandatory_cols())
+        mandatory_cols = set(cls.get_mandatory_field_names())
         cols = set(df.columns)
-        return len(exp - cols) == 0
+        return len(mandatory_cols - cols) == 0
 
     @classmethod
-    def has_banned_cols(cls, df: pd.DataFrame) -> bool:
-        banned = set(cls.get_banned_cols())
+    def has_forbidden_cols(cls, df: pd.DataFrame) -> bool:
+        forbidden_cols = set(cls.get_forbidden_field_names())
         cols = set(df.columns)
-        return len(banned & cols) == 0
+        return len(forbidden_cols & cols) > 0
 
     @classmethod
     def coerce_dtypes(cls, df: pd.DataFrame) -> pd.DataFrame:
-        for col, col_type in cls.get_dtypes().items():
+        for col, col_type in cls.get_field_dtypes().items():
             if col in df.columns:
                 try:
                     if col_type == DataField.DATE_TYPE:
@@ -85,12 +87,12 @@ class DataSource:
 
         # Check that all the required columns are there
         assert cls.has_mandatory_cols(df), "The DataFrame passed to {} should have columns {}, but has {}".format(
-            cls.__name__, cls.get_mandatory_cols(), df.columns
+            cls.__name__, cls.get_mandatory_field_names(), df.columns
         )
 
         # Check that all the banned columns are not there
-        assert cls.has_banned_cols(df), "The DataFrame passed to {} should NOT have columns {}, but has {}".format(
-            cls.__name__, cls.get_banned_cols(), df.columns
+        assert not cls.has_forbidden_cols(df), "The DataFrame passed to {} should NOT have columns {}, but has {}".format(
+            cls.__name__, cls.get_forbidden_field_names(), df.columns
         )
 
         # Cast all of the columns to their correct data types
@@ -107,7 +109,10 @@ class DataSource:
 
     @classmethod
     def get_dtypes_pandas(cls: "DataSource") -> Dict[str, Type]:
-        return {colnm: (dtype if dtype != DataField.DATE_TYPE else str) for colnm, dtype in cls.get_dtypes().items()}
+        return {
+            col_name: (dtype if dtype != DataField.DATE_TYPE else str)
+            for col_name, dtype in cls.get_field_dtypes().items()
+        }
 
     @classmethod
     def read_csv(cls, filename: str, **kwargs) -> pd.DataFrame:
@@ -134,12 +139,54 @@ class DataSource:
         return cls(cls.read_csv(filename))
 
     @classmethod
-    def from_excel(cls, filename: str, sheet: str):
+    def from_csv_dir(cls, dir: str, file_ext = "csv") -> "DataSource":
+        """
+        Load DataSource from a csv file in a given directory. Any file in the directory with a matching file
+        extension is checked for compatibility with the DataSource i.e. does it have any mandatory / forbidden
+        columns, and are the datatypes compatible.
+
+        :param dir: str
+            Path to directory containing csv file/s
+        :param file_ext: str
+            Only check files with given extension
+        :return: DataSource
+        """
+
+        files = glob.glob(os.path.join(dir, '*.' + file_ext.strip(".")))
+        for file in files:
+            try:
+                return cls.from_csv(file)
+            except (IOError, AssertionError):
+                pass
+
+        error_msg = """
+        Could not find a valid csv file in {} for {}. The following files were checked {}
+        """.format(dir, cls.__name__, files)
+
+        raise IOError(error_msg)
+
+    @classmethod
+    def from_excel(cls, filename: str, sheet: Optional[str] = None):
         """
         Create an instance of class from csv file.
         """
-        log.info("Loading {} from {} sheet {}".format(cls.__name__, filename, sheet))
-        return cls(cls.read_excel(filename, sheet))
+
+        # If the sheet name is provided, try to load directly
+        if sheet is not None:
+            log.info("Loading {} from {} sheet {}".format(cls.__name__, filename, sheet))
+            return cls(cls.read_excel(filename, sheet))
+
+        # If the sheet isn't provided, try each sheet
+        xl = pd.ExcelFile(filename)
+        for sheet in xl.sheet_names:
+            try:
+                return cls(cls.read_excel(filename, sheet))
+            except (IOError, AssertionError):
+                pass
+
+        raise IOError(
+            "Could not find a sheet within {} that matches the expected format of ".format(filename, cls.__name__)
+        )
 
     @classmethod
     def from_dict(cls, d: dict):
@@ -161,7 +208,7 @@ class Accounts(DataSource):
     """
 
     # The data types for each column
-    dfields = [
+    fields = [
         DataField(name=field_names.ACCOUNT_KEY, dtype=str, mandatory=True),
         DataField(name=field_names.ACCOUNT_NBR, dtype=str, mandatory=False),
         DataField(name=field_names.SORT_CODE, dtype=str, mandatory=False),
@@ -172,7 +219,7 @@ class Accounts(DataSource):
     ]
 
     # Should not find these columns
-    banned_cols = [
+    forbidden_field_names = [
         field_names.DATE,
         field_names.BALANCE,
         field_names.TRANSFER,
@@ -247,14 +294,14 @@ class BalanceUpdates(DataSource):
     """
 
     # The data types for each column
-    dfields = [
+    fields = [
         DataField(name=field_names.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
         DataField(name=field_names.ACCOUNT_KEY, dtype=str, mandatory=True),
         DataField(name=field_names.BALANCE, dtype=float, mandatory=True),
         DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
     ]
 
-    banned_cols = [field_names.FROM_ACCOUNT_KEY, field_names.TO_ACCOUNT_KEY]
+    forbidden_field_names = [field_names.FROM_ACCOUNT_KEY, field_names.TO_ACCOUNT_KEY]
 
     def __init__(self, df):
         super(BalanceUpdates, self).__init__(df)
@@ -290,7 +337,7 @@ class BalanceTransfers(DataSource):
     """
 
     # The data types for each column
-    dfields = [
+    fields = [
         DataField(name=field_names.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
         DataField(name=field_names.AMOUNT, dtype=float, mandatory=True),
         DataField(name=field_names.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
@@ -298,7 +345,7 @@ class BalanceTransfers(DataSource):
         DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
     ]
 
-    banned_cols = [field_names.ACCOUNT_KEY]
+    forbidden_field_names = [field_names.ACCOUNT_KEY]
 
     def __init__(self, df):
         super(BalanceTransfers, self).__init__(df)

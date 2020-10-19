@@ -8,7 +8,7 @@ import pandas as pd
 from pandas.plotting import register_matplotlib_converters
 
 from .config import Config
-from .core import MoneyData
+from .moneydata import MoneyData
 from .moneyframe import MoneyFrame
 from .moneyframecollection import MoneyFrameCollection
 from .utils import assert_type

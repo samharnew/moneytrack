@@ -1,7 +1,7 @@
 import os
 
 from moneytrack.config import Config
-from moneytrack.core import MoneyData
+from moneytrack.moneydata import MoneyData
 from moneytrack.datasets import DataField, Accounts, BalanceTransfers, BalanceUpdates
 from moneytrack.moneyframe import MoneyFrame
 from moneytrack.moneyframecollection import MoneyFrameCollection

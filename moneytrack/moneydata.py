@@ -18,7 +18,7 @@ class MoneyData(MoneyFrameCollection):
     """
     Container for all information about account portfolio:
         - Accounts: Details of each account in portfolio
-        - Balance Updates: A checkpoint of an account balance at a point in time
+        - Balance Updates: Contains checkpoints of account balances at a point in time
         - Balance Transfers: Transfers between accounts, or from external sources
     """
 
@@ -142,32 +142,7 @@ class MoneyData(MoneyFrameCollection):
         )
 
     @classmethod
-    def find_path(cls, dir: str, filename_substr: str, file_ext: str = Config.CSV_EXT) -> str:
-        """
-        Find the path to a file given:
-        :param dir: str
-            Directory containing file
-        :param filename_substr:
-            A sub-string that will be contained within the filename
-        :param file_ext:
-            The extension of the file
-        :return: str
-            Path to the matching file
-        :raises: AssertionError
-            If either no file paths, or multiple file paths are found matching the criteria
-        """
-        files = glob.glob(os.path.join(dir, '*.' + file_ext.strip(".")))
-        files = map(lambda x: os.path.split(x), files)
-        matching_files = list(filter(lambda x: filename_substr in x[1], files))
-        assert len(matching_files) != 0, "No {} files containing '{}' can be found".format(file_ext, filename_substr)
-        assert len(matching_files) == 1, "More than one {} file containing '{}' has been found: {}".format(
-            dir, filename_substr, "\n".join(matching_files)
-        )
-        return os.path.join(*matching_files[0])
-
-    @classmethod
-    def from_excel(cls, path: str, accounts_sheet="accounts", transfers_sheet="transfers",
-                   updates_sheet="balance_updates") -> "MoneyData":
+    def from_excel(cls, path: str, accounts_sheet=None, transfers_sheet=None, updates_sheet=None) -> "MoneyData":
         """
         Helper method to create a MoneyData instance from a excel files containing multiple sheets
 
@@ -188,29 +163,26 @@ class MoneyData(MoneyFrameCollection):
         )
 
     @classmethod
-    def from_csv_dir(cls, dir: str, accounts_substr="accounts", transfers_substr="transfers",
-                     updates_substr="updates") -> "MoneyData":
+    def from_csv_dir(cls, dir: str, file_ext = "csv") -> "MoneyData":
         """
         Helper method to create a MoneyData instance from a directory containing csv files.
 
         :param dir: str
             Directory containing csv files
-        :param accounts_substr: str
-            Substring that will appear in the accounts filename
-        :param transfers_substr: str
-            Substring that will appear in the balance transfers filename
-        :param updates_substr: str
-            Substring that will appear in the balance updates filename
+        :param file_ext: str
+            File extension of the csv files
         :return: MoneyData
         """
-        return cls.from_csv(
-            accounts_path=cls.find_path(dir=dir, filename_substr=accounts_substr, file_ext=Config.CSV_EXT),
-            balance_transfers_path=cls.find_path(dir=dir, filename_substr=transfers_substr, file_ext=Config.CSV_EXT),
-            balance_updates_path=cls.find_path(dir=dir, filename_substr=updates_substr, file_ext=Config.CSV_EXT),
+        return cls.from_updates(
+            accounts=Accounts.from_csv_dir(dir, file_ext),
+            balance_updates=BalanceUpdates.from_csv_dir(dir, file_ext),
+            balance_transfers=BalanceTransfers.from_csv_dir(dir, file_ext),
         )
 
-    def __getitem__(self, item):
-        return MoneyData(
-            self.accounts,
-            super(MoneyData, self).__getitem__(item)
-        )
+    def __getitem__(self, item) -> Union["MoneyData", MoneyFrame]:
+
+        mf = super(MoneyData, self).__getitem__(item)
+        if isinstance(mf, MoneyFrameCollection):
+            return MoneyData(self.accounts, mf)
+
+        return mf

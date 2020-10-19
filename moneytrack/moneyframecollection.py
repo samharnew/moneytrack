@@ -118,8 +118,22 @@ class MoneyFrameCollection:
             return df.sort_values(field_names.INTEREST_RATE)
         return d
 
-    def __getitem__(self, item) -> MoneyFrame:
-        return self.moneyframes[item]
+    def __getitem__(self, x) -> Union["MoneyFrameCollection", MoneyFrame]:
+
+        # First check to see if x is one of the MoneyFrameCollection keys.
+        try:
+            if x in self.keys():
+                return self.moneyframes[x]
+        except TypeError:
+            # If x is not hashable
+            pass
+
+        # If x is not one of the MoneyFrameCollection keys, apply the filter to each MoneyFrame
+        # in the collection.
+        return MoneyFrameCollection(
+            {k: v.__getitem__(x) for k, v in self.items()},
+            self.key_title
+        )
 
     def items(self):
         return self.moneyframes.items()
