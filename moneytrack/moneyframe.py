@@ -10,6 +10,7 @@ from .config import Config
 from .datasets import BalanceUpdates, BalanceTransfers
 from .utils import coalesce, assert_type, adr_to_ayr, calc_avg_interest_rate, calc_daily_balances_w_transfers, \
     dates_between, ayr_to_adr
+# from .moneyframecollection import MoneyFrameCollection
 
 field_names = Config.FieldNames
 
@@ -119,6 +120,10 @@ class MoneyFrame:
             df = self.df.loc[start_date:end_date]
 
         return MoneyFrame(df)
+
+    def as_collection(self, key=None):
+        key = coalesce(key, "ALL ACCOUNTS")
+        return MoneyFrameCollection({key: self})
 
     def to_df(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
               inc_interest_rate=False, inc_cum_interest_rate: bool = False, as_ayr: bool = True,
@@ -648,8 +653,8 @@ class MoneyFrame:
 
         if isinstance(x, slice):
             assert x.step is None, "step parameter is not accepted when slicing a MoneyFrame"
-            if isinstance(coalesce(x.start, 0), int) and isinstance(coalesce(x.stop, -1), int):
-                start_ix, end_ix = coalesce(x.start, 0), coalesce(x.stop, -1)
+            if isinstance(coalesce(x.start, 0), int) and isinstance(coalesce(x.stop, len(self)), int):
+                start_ix, end_ix = coalesce(x.start, 0), coalesce(x.stop, len(self))
                 return MoneyFrame(self.df.iloc[start_ix:end_ix])
             else:
                 start_date = pd.to_datetime(coalesce(x.start, self.min_date()))
@@ -657,6 +662,8 @@ class MoneyFrame:
                 assert start_date <= end_date, "Must have start_date <= end_date"
                 return self.get_slice(start_date, end_date, extrapolate=False)
         elif isinstance(x, int):
+            if x == -1:
+                return MoneyFrame(self.df.iloc[x:])
             return MoneyFrame(self.df.iloc[x:x + 1])
         elif isinstance(x, str) and x in self.df.columns:
             return self.df[x].values

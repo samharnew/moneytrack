@@ -1,6 +1,4 @@
-import glob
 import logging
-import os
 from typing import Optional, Union, List, Dict
 
 from .config import Config
@@ -18,8 +16,7 @@ class MoneyData(MoneyFrameCollection):
     """
     Container for all information about account portfolio:
         - Accounts: Details of each account in portfolio
-        - Balance Updates: Contains checkpoints of account balances at a point in time
-        - Balance Transfers: Transfers between accounts, or from external sources
+        - MoneyFrameCollection: Contains daily updates of balances, interest payments, and transfers for each account
     """
 
     def __init__(self, accounts: Accounts, mf_collection: MoneyFrameCollection):
@@ -35,7 +32,8 @@ class MoneyData(MoneyFrameCollection):
         assert_type(accounts, Accounts)
         assert_type(mf_collection, MoneyFrameCollection)
         assert mf_collection.key_title == field_names.ACCOUNT_KEY, \
-            "The keys of the MoneyFrameCollection should be account keys"
+            "For a MoneyData object, the keys of the MoneyFrameCollection should be account keys. Not {}".format(
+                mf_collection.key_title)
 
         super(MoneyData, self).__init__(mf_collection.moneyframes, mf_collection.key_title)
         self.accounts = accounts
@@ -163,20 +161,20 @@ class MoneyData(MoneyFrameCollection):
         )
 
     @classmethod
-    def from_csv_dir(cls, dir: str, file_ext = "csv") -> "MoneyData":
+    def from_csv_dir(cls, path: str, file_ext: str = "csv") -> "MoneyData":
         """
         Helper method to create a MoneyData instance from a directory containing csv files.
 
-        :param dir: str
+        :param path: str
             Directory containing csv files
         :param file_ext: str
             File extension of the csv files
         :return: MoneyData
         """
         return cls.from_updates(
-            accounts=Accounts.from_csv_dir(dir, file_ext),
-            balance_updates=BalanceUpdates.from_csv_dir(dir, file_ext),
-            balance_transfers=BalanceTransfers.from_csv_dir(dir, file_ext),
+            accounts=Accounts.from_csv_dir(path, file_ext),
+            balance_updates=BalanceUpdates.from_csv_dir(path, file_ext),
+            balance_transfers=BalanceTransfers.from_csv_dir(path, file_ext),
         )
 
     def __getitem__(self, item) -> Union["MoneyData", MoneyFrame]:

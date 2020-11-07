@@ -48,7 +48,7 @@ def create_daily_transfer_record(trans_days: Iterable[int], trans_amts: Iterable
     return ar
 
 
-def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts):
+def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts, method="AUTO"):
     """
     sum amt_i * (1 + ir) ^ ndays_i = end_bal
 
@@ -62,12 +62,18 @@ def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts)
         A list of days where transfers were made too / from the account
     :param trans_amts: List[double]
         A list of amounts for transfers that were made too / from the account
+    :param method: str
+        Should the numerical or analytic method be used.
     :return: The average daily interest rate over over the period
     """
 
     # Can't calculate an interest rate over zero days
     if num_days == 0:
         return 0.0
+
+    log.debug("calc_avg_interest_rate(start_bal={}, end_bal={}, num_days={}, trans_days={}, trans_amts={})".format(
+        start_bal, end_bal, num_days, trans_days, trans_amts,
+    ))
 
     trans_days = np.asarray(trans_days)
     trans_amts = np.asarray(trans_amts)
@@ -76,24 +82,36 @@ def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts)
     trans_amts_in = [start_bal, -end_bal] + trans_amts.tolist()
     log.debug("Calling create_daily_transfer_record({}, {})".format(str(trans_days_in), str(trans_amts_in)))
     rec = create_daily_transfer_record(trans_days_in, trans_amts_in)
-
     # If every element is zero, the account has always been empty.
     if not rec.any():
         return 0.0
 
+    if (method.upper() == "AUTO" and num_days > 100.0) or method.upper() == "NUMERICAL":
+        method = "NUMERICAL"
+    elif (method.upper() == "AUTO" and num_days <= 100.0) or method.upper() == "ANALYTIC":
+        method = "ANALYTICAL"
+    else:
+        raise KeyError("Method must be in [AUTO, NUMERICAL, ANALYTICAL]. {} was given.".format(method))
+
     # Determine the average interest rate
-    if num_days > 100:
+    if method == "NUMERICAL":
         # This polynomial should only have one real positive root that we're interest in.
         # It's therefore not necessary to find all of the roots of the polynomial.
         # When the order of the polynomial becomes large, it's much faster to just solve it numerically.
         # Note that num_days > 100 hasn't really been tuned for performance.
-        result = minimize_scalar(lambda x: np.power(np.polyval(rec, x), 2.0), (0.0, 1.0, 1.1))
-        if result.success == False:
+
+        def f_target(x): return np.power(np.polyval(rec, x), 2.0)
+        try:
+            result = minimize_scalar(f_target, (0.0, 1.0, 1.1))
+        except ValueError:
+            result = minimize_scalar(f_target, (1.0-1.0e-12, 1.0, 1.1))
+
+        if not result.success:
             input_summary_str = ("start_bal = {start_bal}, end_bal = {end_bal}, num_days = {num_days}, "
                                  + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
             raise AssertionError("Could not find any roots: " + input_summary_str)
         interest_rate = result.x - 1.0
-    else:
+    if method == "ANALYTICAL":
         real_pos_roots = calc_real_pos_roots(rec)
         if len(real_pos_roots) == 0:
             input_summary_str = ("start_bal = {start_bal}, end_bal = {end_bal}, num_days = {num_days}, "
