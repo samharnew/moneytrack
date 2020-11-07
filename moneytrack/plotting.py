@@ -14,7 +14,7 @@ field_names = Config.FieldNames
 register_matplotlib_converters()
 
 
-class MoneyViz:
+class MoneyPlot:
     class Metric(Enum):
         Balance = 1
         Interest = 2
@@ -51,18 +51,18 @@ class MoneyViz:
     @classmethod
     def get_metric(cls, mf: MoneyFrame, metric: Metric, cumulative: bool = False):
 
-        if metric == MoneyViz.Metric.Balance:
+        if metric == MoneyPlot.Metric.Balance:
             s = mf.get_daily_balance()
             assert cumulative is False, "Plotting cumulative balance makes NO sense. Rethink"
-        elif metric == MoneyViz.Metric.Interest:
+        elif metric == MoneyPlot.Metric.Interest:
             s = mf.get_daily_interest()
             if cumulative:
                 s = s.cumsum()
-        elif metric == MoneyViz.Metric.Transfers:
+        elif metric == MoneyPlot.Metric.Transfers:
             s = mf.get_daily_transfers()
             if cumulative:
                 s = s.cumsum()
-        elif metric == MoneyViz.Metric.InterestRate:
+        elif metric == MoneyPlot.Metric.InterestRate:
             s = mf.get_daily_interest_rate()
             if cumulative:
                 s = mf.get_cumulative_interest_rate()
@@ -156,13 +156,13 @@ class MoneyViz:
     @classmethod
     def calculate_bar_metric(cls, mf: MoneyFrame, metric: Metric, normalize: bool = False):
 
-        if metric == MoneyViz.Metric.Balance:
+        if metric == MoneyPlot.Metric.Balance:
             s = mf.get_daily_balance().iloc[-1]
-        elif metric == MoneyViz.Metric.Interest:
+        elif metric == MoneyPlot.Metric.Interest:
             s = mf.get_daily_interest().sum()
-        elif metric == MoneyViz.Metric.Transfers:
+        elif metric == MoneyPlot.Metric.Transfers:
             s = mf.get_daily_transfers().sum()
-        elif metric == MoneyViz.Metric.InterestRate:
+        elif metric == MoneyPlot.Metric.InterestRate:
             s = mf.calc_avg_interest_rate()
         else:
             raise AttributeError("Not implemented plotting for metric={}".format(metric))
@@ -176,11 +176,11 @@ class MoneyViz:
                    if not mf.is_zombie()}
         results = pd.Series(results, name="metric").sort_values(ascending=False)
 
-        if metric in (MoneyViz.Metric.Balance,):
+        if metric in (MoneyPlot.Metric.Balance,):
             results = results[results.values != 0.0]
 
         if normalize:
-            if metric in (MoneyViz.Metric.InterestRate, ):
+            if metric in (MoneyPlot.Metric.InterestRate,):
                 raise ValueError("Should not normalise the metric 'InterestRate'")
             results = (results/results.sum())*100.0
 
@@ -218,9 +218,9 @@ class MoneyViz:
 
         if annotate:
             if normalize:
-                MoneyViz.label_bars(bars, ax, lambda x: "{:.2f}%".format(x))
+                MoneyPlot.label_bars(bars, ax, lambda x: "{:.2f}%".format(x))
             else:
-                MoneyViz.label_bars(bars, ax, cls.def_annotate_fun[metric])
+                MoneyPlot.label_bars(bars, ax, cls.def_annotate_fun[metric])
             ax.margins(y=0.1)
         return f, ax
 

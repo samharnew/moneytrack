@@ -10,7 +10,8 @@ from .config import Config
 from .datasets import BalanceUpdates, BalanceTransfers
 from .utils import coalesce, assert_type, adr_to_ayr, calc_avg_interest_rate, calc_daily_balances_w_transfers, \
     dates_between, ayr_to_adr
-# from .moneyframecollection import MoneyFrameCollection
+
+import moneytrack as mt
 
 field_names = Config.FieldNames
 
@@ -123,7 +124,7 @@ class MoneyFrame:
 
     def as_collection(self, key=None):
         key = coalesce(key, "ALL ACCOUNTS")
-        return MoneyFrameCollection({key: self})
+        return mt.MoneyFrameCollection({key: self})
 
     def to_df(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None,
               inc_interest_rate=False, inc_cum_interest_rate: bool = False, as_ayr: bool = True,

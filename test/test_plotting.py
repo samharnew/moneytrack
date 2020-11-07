@@ -14,7 +14,7 @@ class TestPlotting(unittest.TestCase):
     def test_mf_plot(self):
         mf = mt.MoneyFrame.from_fixed_rate(days=500, start_bal=100.0, ayr_prcnt=5.0)
 
-        f, ax = mt.MoneyViz.plot(mf, mt.MoneyViz.Metric.Interest, cumulative=True)
+        f, ax = mt.MoneyPlot.plot(mf, mt.MoneyPlot.Metric.Interest, cumulative=True)
         f.autofmt_xdate()
         f.savefig(os.path.join(self.sample_plt_dir, "mf_cum_interest.pdf"))
 
@@ -26,25 +26,25 @@ class TestPlotting(unittest.TestCase):
         }
 
         mfc = mt.MoneyFrameCollection(d, "account_key")
-        f, ax = mt.MoneyViz.plot(mfc, mt.MoneyViz.Metric.Balance, cumulative=False)
+        f, ax = mt.MoneyPlot.plot(mfc, mt.MoneyPlot.Metric.Balance, cumulative=False)
         f.savefig(os.path.join(self.sample_plt_dir, "mfc_balance.pdf"))
 
-        f, ax = mt.MoneyViz.plot(mfc, mt.MoneyViz.Metric.Transfers, cumulative=False)
+        f, ax = mt.MoneyPlot.plot(mfc, mt.MoneyPlot.Metric.Transfers, cumulative=False)
         f.savefig(os.path.join(self.sample_plt_dir, "mfc_transfers.pdf"))
 
-        f, ax = mt.MoneyViz.plot(mfc, mt.MoneyViz.Metric.Transfers, cumulative=True)
+        f, ax = mt.MoneyPlot.plot(mfc, mt.MoneyPlot.Metric.Transfers, cumulative=True)
         f.savefig(os.path.join(self.sample_plt_dir, "mfc_cum_transfers.pdf"))
 
-        f, ax = mt.MoneyViz.plot(mfc, mt.MoneyViz.Metric.InterestRate, cumulative=False)
+        f, ax = mt.MoneyPlot.plot(mfc, mt.MoneyPlot.Metric.InterestRate, cumulative=False)
         f.savefig(os.path.join(self.sample_plt_dir, "mfc_interest_rate.pdf"))
 
-        f, ax = mt.MoneyViz.plot(mfc, mt.MoneyViz.Metric.InterestRate, cumulative=True)
+        f, ax = mt.MoneyPlot.plot(mfc, mt.MoneyPlot.Metric.InterestRate, cumulative=True)
         f.savefig(os.path.join(self.sample_plt_dir, "mfc_cum_interest_rate.pdf"))
 
-        f, ax = mt.MoneyViz.plot(mfc, mt.MoneyViz.Metric.Interest, cumulative=False)
+        f, ax = mt.MoneyPlot.plot(mfc, mt.MoneyPlot.Metric.Interest, cumulative=False)
         f.savefig(os.path.join(self.sample_plt_dir, "mfc_interest.pdf"))
 
-        f, ax = mt.MoneyViz.plot(mfc, mt.MoneyViz.Metric.Interest, cumulative=True)
+        f, ax = mt.MoneyPlot.plot(mfc, mt.MoneyPlot.Metric.Interest, cumulative=True)
         f.savefig(os.path.join(self.sample_plt_dir, "mfc_cum_interest.pdf"))
 
 
