@@ -20,7 +20,7 @@ setup(
         "numpy>=1.18.1",
         "pandas>=0.25.3",
         "matplotlib>=3.0.0",
-        "xlrd>=1.0.0",
+        "xlrd>=1.2.0",
     ],
     # metadata to display on PyPI
     author="Sam Harnew",
