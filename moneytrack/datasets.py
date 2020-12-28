@@ -311,24 +311,20 @@ class BalanceUpdates(DataSource):
         mask = df[field_names.ACCOUNT_KEY].isin(account_keys)
         return df[mask]
 
-    def get_acc_updates(self, account_key: str, prev_update_cols: bool = False) -> pd.DataFrame:
+    def get_acc_updates(self, account_key: str) -> pd.Series:
         """
-        Get a DataFrame containing updates for a single account, containing update balance,
-        and update date ("balance" and "date" respectively). Result is sorted ascending in date
+        Get a Pandas series containing updates for a single account, containing update balance,
+        and indexed by update date. Result is sorted ascending in date
 
         :param account_key: Unique key identifying an account
-        :param prev_update_cols: Add additional columns to the DataFrame with "prev_balance" and "prev_date"
-        :return: DataFrame of account updates
+        :return: Series of account updates, indexed by datetime
         """
         df = self.get_df()
         df_acc = df[df[field_names.ACCOUNT_KEY] == account_key][[field_names.DATE, field_names.BALANCE]].copy()
-        df_acc.sort_values(field_names.DATE, ascending=True, inplace=True)
+        df_acc.set_index(field_names.DATE, inplace=True)
+        df_acc.sort_index(inplace=True)
 
-        if prev_update_cols:
-            df_acc[field_names.PREV_BALANCE] = df_acc[field_names.BALANCE].shift(1)
-            df_acc[field_names.PREV_DATE] = df_acc[field_names.DATE].shift(1)
-
-        return df_acc
+        return df_acc[field_names.BALANCE]
 
 
 class BalanceTransfers(DataSource):
@@ -355,7 +351,7 @@ class BalanceTransfers(DataSource):
         mask = df[field_names.FROM_ACCOUNT_KEY].isin(account_keys) | df[field_names.TO_ACCOUNT_KEY].isin(account_keys)
         return df[mask]
 
-    def get_acc_transfers_to(self, account_key: str) -> pd.DataFrame:
+    def _get_acc_transfers_to(self, account_key: str) -> pd.DataFrame:
         """
         Get a DataFrame containing balance transfers *to* an account, containing transfer amount,
         and transfer date ("amount" and "date" respectively).
@@ -366,7 +362,7 @@ class BalanceTransfers(DataSource):
         df = self.get_df()
         return df[df[field_names.TO_ACCOUNT_KEY] == account_key][[field_names.DATE, field_names.AMOUNT]].copy()
 
-    def get_acc_transfers_from(self, account_key: str, signed: bool = False) -> pd.DataFrame:
+    def _get_acc_transfers_from(self, account_key: str, signed: bool = False) -> pd.DataFrame:
         """
         Get a DataFrame containing balance transfers *from* an account, containing transfer amount,
         and transfer date ("amount" and "date" respectively).
@@ -381,16 +377,19 @@ class BalanceTransfers(DataSource):
             df_t[field_names.AMOUNT] = -df_t[field_names.AMOUNT]
         return df_t
 
-    def get_acc_transfers(self, account_key) -> pd.DataFrame:
+    def get_acc_transfers(self, account_key) -> pd.Series:
         """
-        Get a DataFrame containing balance transfers to and from an account, containing transfer amount,
-        and transfer date ("amount" and "date" respectively). The sign of the amount indicates transfers to/from
-        the account.
+        Get a Series containing balance transfers to and from an account, containing transfer amount,
+        and indexed by the transfer date. The sign of the amount indicates transfers to/from the account.
 
         :param account_key: Unique key identifying an account
         :return: DataFrame of account transfers
         """
-        return pd.concat([
-            self.get_acc_transfers_to(account_key),
-            self.get_acc_transfers_from(account_key, signed=True)
+        df = pd.concat([
+            self._get_acc_transfers_to(account_key),
+            self._get_acc_transfers_from(account_key, signed=True)
         ])
+        series = df.groupby(field_names.DATE)[field_names.AMOUNT].sum()
+        series.sort_index(inplace=True)
+        series.rename(field_names.TRANSFER, inplace=True)
+        return series

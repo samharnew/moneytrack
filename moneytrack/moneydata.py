@@ -97,7 +97,7 @@ class MoneyData(MoneyFrameCollection):
         return self.groupby(lambda x: d.get(x.upper(), None), key_title=by)
 
     @classmethod
-    def from_updates(cls, accounts: Accounts, balance_updates: BalanceUpdates, balance_transfers: BalanceTransfers):
+    def from_updates_and_transfers(cls, accounts: Accounts, balance_updates: BalanceUpdates, balance_transfers: BalanceTransfers):
         """
         Create a MoneyData instance.
 
@@ -133,7 +133,7 @@ class MoneyData(MoneyFrameCollection):
             Path to csv file containing BalanceTransfers
         :return: MoneyData
         """
-        return MoneyData.from_updates(
+        return MoneyData.from_updates_and_transfers(
             Accounts.from_csv(accounts_path),
             BalanceUpdates.from_csv(balance_updates_path),
             BalanceTransfers.from_csv(balance_transfers_path),
@@ -154,7 +154,7 @@ class MoneyData(MoneyFrameCollection):
             Name of the excel sheet that contains the balance updates
         :return: MoneyData
         """
-        return MoneyData.from_updates(
+        return MoneyData.from_updates_and_transfers(
             Accounts.from_excel(path, accounts_sheet),
             BalanceUpdates.from_excel(path, updates_sheet),
             BalanceTransfers.from_excel(path, transfers_sheet),
@@ -171,7 +171,7 @@ class MoneyData(MoneyFrameCollection):
             File extension of the csv files
         :return: MoneyData
         """
-        return cls.from_updates(
+        return cls.from_updates_and_transfers(
             accounts=Accounts.from_csv_dir(path, file_ext),
             balance_updates=BalanceUpdates.from_csv_dir(path, file_ext),
             balance_transfers=BalanceTransfers.from_csv_dir(path, file_ext),

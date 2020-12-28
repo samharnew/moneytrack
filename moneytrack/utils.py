@@ -1,13 +1,66 @@
 import logging
 from enum import Enum
-from typing import Union, Iterable, TypeVar, Optional
+from typing import Union, Iterable, TypeVar, Optional, List
 
 import numpy as np
 import pandas as pd
+import scipy
 from scipy.optimize import minimize_scalar
 
 log = logging.getLogger("utils")
 
+TNumeric = TypeVar('TNumeric', int, float)
+
+
+class SparseVector:
+    """
+    A sparse representation of a 1D vector. Behind the scenes it uses a scipy.sparse.csr_matrix, but
+    this wrapper has a much simplified interface.
+    """
+
+    def __init__(self, values: Iterable[TNumeric], indices: Iterable[int], size: Optional[int] = None):
+        """
+        Create a sparse vector with values, and the indices at which they occur. All other elements
+        are zero. As an example, the vector [0, 0, 4.3, 0, 3.4, 0], could be created as:
+
+            SparseVector([4.3, 3.4], [2, 4], 6)
+
+        :param values: Iterable[TNumeric]
+            The non-zero values of the vector e.g. [4.3, 3.4]
+        :param indices: Iterable[int]
+            The indices at which the values occur e.g. [2, 4]
+        :param size: Optional[int]
+            Optionally provide the length of the array e.g. 6
+        """
+        if size is not None and np.max(indices) >= size:
+            raise ValueError("The size parameter is smaller or equal to an element of indices")
+
+        try:
+            shape = (1, size) if size is not None else None
+            self.sparse_mat = scipy.sparse.csr_matrix(
+                (values, indices, [0, len(values)]), shape=shape
+            )
+        except ValueError as e:
+            raise ValueError("Could not parse inputs values = {}, indices = {}, size = {}."
+                             "Full error: {}".format(values, indices, size, repr(e)))
+
+    def dense(self) -> np.array:
+        """
+        Obtain the dense representation of the sparse vector
+        :return: np.array
+        """
+        return self.sparse_mat.toarray()[0]
+
+    @staticmethod
+    def from_dense(self, ar: Iterable[TNumeric]) -> "SparseVector":
+        """
+        Create a sparse representation of a dense vector
+
+        :param self:
+        :param ar:
+        :return:
+        """
+        raise NotImplementedError()
 
 def calc_real_pos_roots(p: Iterable[float]):
     """
@@ -24,9 +77,6 @@ def calc_real_pos_roots(p: Iterable[float]):
     return real_pos_roots
 
 
-TNumeric = TypeVar('TNumeric', int, float)
-
-
 def create_daily_transfer_record(trans_days: Iterable[int], trans_amts: Iterable[TNumeric]) -> np.array:
     """
     Take an array of transfers, and the day on which they happened, and
@@ -35,17 +85,13 @@ def create_daily_transfer_record(trans_days: Iterable[int], trans_amts: Iterable
     trans_amts = [0.5, 1.4] becomes [0.0, 0.0, 0.5, 0.0, 0.0, 1.4]
 
     :param trans_days: array[int]
-        The day on which the transfer waa made
+        The day on which the transfer was made
     :param trans_amts: array[double]
         The amount of the transfer
     :return: daily transfer record
     """
     log.debug("creating daily transfer record using days {} and amounts {}".format(str(trans_days), str(trans_amts)))
-    max_days = np.max(trans_days)
-    ar = np.zeros(max_days + 1)
-    for amt, day in zip(trans_amts, trans_days):
-        ar[day] += amt
-    return ar
+    return SparseVector(values=trans_amts, indices=trans_days).dense()
 
 
 def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts, method="AUTO"):

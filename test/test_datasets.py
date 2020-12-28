@@ -99,7 +99,9 @@ class DatasetTests(unittest.TestCase):
             field_names.BALANCE: [100.0, 200.0, 200.0],
             field_names.DATE: ["2019-01-01", "2019-01-01", "2019-01-03"],
         })
-        df = balance_updates.get_acc_updates(account_key="1")
+        df = balance_updates.get_acc_updates(account_key="1").to_frame().reset_index()
+        print(df)
+
         exp = pd.DataFrame(
             {
                 field_names.BALANCE: [100.0, 200.0],
@@ -108,22 +110,11 @@ class DatasetTests(unittest.TestCase):
         )
         self.assertTrue(compare_pd_df(df, exp, sort=False))
 
-        df = balance_updates.get_acc_updates(account_key="1")
+        df = balance_updates.get_acc_updates(account_key="1").to_frame().reset_index()
         exp = pd.DataFrame(
             {
                 field_names.BALANCE: [200.0, 100.0],
                 field_names.DATE: pd.to_datetime(["2019-01-03", "2019-01-01"]),
-            }
-        )
-        self.assertTrue(compare_pd_df(df, exp, sort=True))
-
-        df = balance_updates.get_acc_updates(account_key="1", prev_update_cols=True)
-        exp = pd.DataFrame(
-            {
-                field_names.BALANCE: [200.0, 100.0],
-                field_names.DATE: pd.to_datetime(["2019-01-03", "2019-01-01"]),
-                field_names.PREV_BALANCE: [100.0, None],
-                field_names.PREV_DATE: pd.to_datetime(["2019-01-01", None]),
             }
         )
         self.assertTrue(compare_pd_df(df, exp, sort=True))
@@ -136,12 +127,12 @@ class DatasetTests(unittest.TestCase):
             field_names.DATE: pd.to_datetime(["2019-01-01", "2019-01-02", "2019-01-03"]),
         })
 
-        df = bal_trans.get_acc_transfers("1")
+        df = bal_trans.get_acc_transfers("1").to_frame().reset_index()
         print(df)
 
         exp = pd.DataFrame(
             {
-                field_names.AMOUNT: [-100.0, 200.0],
+                field_names.TRANSFER: [-100.0, 200.0],
                 field_names.DATE: pd.to_datetime(["2019-01-01", "2019-01-02"]),
             }
         )

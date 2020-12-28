@@ -367,7 +367,7 @@ class MoneyFrame:
 
     @classmethod
     def _est_daily_balances_between_updates(cls, start_date: datetime, end_date: datetime, start_bal: float,
-                                            end_bal: float, bal_transfers_df: pd.DataFrame) -> pd.DataFrame:
+                                            end_bal: float, bal_transfers: pd.Series) -> pd.Series:
         """
         Estimate the daily balances between two balance updates, assuming a fixed rate of interest over the period.
 
@@ -379,12 +379,11 @@ class MoneyFrame:
             The balance at the first update (at the end of the day, *after* any balance transfers)
         :param end_bal:
             The balance at the second update (at the end of the day, *after* any balance transfers)
-        :param bal_transfers_df:
-            DataFrame containing balance transfers to and from this account. The DataFrame should have the columns
-            DataFieldG.DATE and DataFieldG.AMOUNT
-        :return: pd.DataFrame
+        :param bal_transfers:
+            Series containing balance transfers to and from this account. Should be indexed by transfer date
+        :return: pd.Series
             Estimated balance in the account each day during the period [start_date, end_date).
-            The DataFrame has columns DataFieldG.DATE and DataFieldG.BALANCE indicating the balance at the end of that
+            The Series is indexed by date, and has values indicating the balance at the end of that
             day *after* any interest and balance transfers are applied.
 
         :raises TypeError: If any of the input types are invalid
@@ -402,11 +401,10 @@ class MoneyFrame:
         log.debug("Updates from {} : {} -> {} : {}".format(start_date, start_bal, end_date, end_bal))
 
         # Get all the transfers from/to the account that happened between the period
-        transfers = bal_transfers_df[(bal_transfers_df[field_names.DATE] > start_date) &
-                                     (bal_transfers_df[field_names.DATE] <= end_date)]
-        trans_days = (transfers[field_names.DATE] - start_date).dt.days
+        transfers = bal_transfers[(bal_transfers.index > start_date) & (bal_transfers.index <= end_date)]
+        trans_days = (transfers.index - start_date).days
         num_days = (end_date - start_date).days
-        trans_amts = transfers[field_names.AMOUNT]
+        trans_amts = transfers.values
 
         # Estimate the interest rate during the period
         log.debug("Calculating daily interest rate")
@@ -421,7 +419,7 @@ class MoneyFrame:
         )
 
         dates = dates_between(start_date, end_date)[:-1]
-        return pd.DataFrame({field_names.DATE: dates, field_names.BALANCE: balances})
+        return pd.Series(data=balances, index=dates, name=field_names.BALANCE)
 
     @classmethod
     def _est_daily_balances(cls, balance_updates: BalanceUpdates, balance_transfers: BalanceTransfers,
@@ -443,85 +441,69 @@ class MoneyFrame:
         log.debug("Getting balance updates and transfers")
 
         # Get balance updates and transfers for the specified account_key
-        bal_updates_df = balance_updates.get_acc_updates(account_key=account_key) \
-            .sort_values(field_names.DATE, ascending=True)
-        bal_transfers_df = balance_transfers.get_acc_transfers(account_key=account_key) \
-            .sort_values(field_names.DATE, ascending=True)
+        bal_updates = balance_updates.get_acc_updates(account_key=account_key)
+        bal_transfers = balance_transfers.get_acc_transfers(account_key=account_key)
 
         # If there isn't any information, just return a DataFrame with today's date and zero balance
-        if len(bal_updates_df) == 0 and len(bal_transfers_df) == 0:
+        if len(bal_updates) == 0 and len(bal_transfers) == 0:
             today = pd.to_datetime(datetime.now().date())
-            return pd.DataFrame(
-                [{field_names.BALANCE: 0.0, field_names.DATE: today}]
-            ).set_index(field_names.DATE)[field_names.BALANCE]
+            return pd.Series(data=[0.0], index=[today], name=field_names.BALANCE).rename_axis(field_names.DATE)
 
         # If there are no balance updates, assume no interest, so that the latest balance update will be sum(transfers)
-        if len(bal_updates_df) == 0:
-            last_bal_trans_date = bal_transfers_df[field_names.DATE].iloc[-1]
-            bal_updates_df = pd.DataFrame([{
-                field_names.DATE: last_bal_trans_date,
-                field_names.BALANCE: bal_transfers_df[field_names.AMOUNT].sum()
-            }])
+        if len(bal_updates) == 0:
+            last_trans_date = bal_transfers.index[-1]
+            bal_updates = pd.Series(data=[np.sum(bal_transfers)], index=[last_trans_date])
 
-        if len(bal_transfers_df) > 0:
+        if len(bal_transfers) > 0:
             # If the first balance transfer happens before the first update, assume that the transfer was the opening
             # payment, and the previous balance was zero
-            first_update_date = bal_updates_df[field_names.DATE].iloc[0]
-            first_bal_trans_date = bal_transfers_df[field_names.DATE].iloc[0]
+            first_update_date = bal_updates.index[0]
+            first_bal_trans_date = bal_transfers.index[0]
 
             if first_bal_trans_date <= first_update_date:
-                new_row = {
-                    field_names.DATE: first_bal_trans_date - pd.Timedelta(days=1),
-                    field_names.BALANCE: 0.0
-                }
-                bal_updates_df = bal_updates_df.append(pd.DataFrame([new_row]), ignore_index=True)
-                bal_updates_df.sort_values(field_names.DATE, ascending=True, inplace=True)
+                new_row = pd.Series(data=[0.0],index=[first_bal_trans_date - pd.Timedelta(days=1)])
+                bal_updates = pd.concat([new_row, bal_updates]).sort_index()
 
             # If balance transfers happen after the last update, assume zero interest after the last update
-            last_update_amt = bal_updates_df[field_names.BALANCE].iloc[-1]
-            last_update_date = bal_updates_df[field_names.DATE].iloc[-1]
-            last_bal_trans_date = bal_transfers_df[field_names.DATE].iloc[-1]
+            last_update_amt = bal_updates.values[-1]
+            last_update_date = bal_updates.index[-1]
+            last_trans_date = bal_transfers.index[-1]
 
-            if last_bal_trans_date > last_update_date:
-                tot_transfers = bal_transfers_df.loc[
-                    bal_transfers_df[field_names.DATE] > last_update_date, field_names.AMOUNT
-                ].sum()
-                new_row = {
-                    field_names.DATE: last_bal_trans_date,
-                    field_names.BALANCE: last_update_amt + tot_transfers
-                }
-                bal_updates_df = bal_updates_df.append(pd.DataFrame([new_row]), ignore_index=True)
-                bal_updates_df.sort_values(field_names.DATE, ascending=True, inplace=True)
+            if last_trans_date > last_update_date:
+                tot_transfers = bal_transfers.loc[bal_transfers.index > last_update_date].sum()
+                new_row = pd.Series(data=[last_update_amt + tot_transfers],index=[last_trans_date])
+                bal_updates = pd.concat([new_row, bal_updates]).sort_index()
 
         # If there is only one balance update, just return the single data point
-        if len(bal_updates_df) == 1:
-            return bal_updates_df.set_index(field_names.DATE)[field_names.BALANCE]
+        if len(bal_updates) == 1:
+            return bal_updates
 
         # Extrapolate the daily balances between each update.
         # First reshape the data to obtain consecutive balance updates
-        bal_updates_df[field_names.START_BALANCE] = bal_updates_df[field_names.BALANCE].shift(1)
-        bal_updates_df[field_names.START_DATE] = bal_updates_df[field_names.DATE].shift(1)
-        bal_updates_df[field_names.END_BALANCE] = bal_updates_df[field_names.BALANCE]
-        bal_updates_df[field_names.END_DATE] = bal_updates_df[field_names.DATE]
+        bal_updates_df = bal_updates.to_frame()
+        bal_updates_df[field_names.END_BALANCE] = bal_updates.values
+        bal_updates_df[field_names.END_DATE] = bal_updates.index.values
+        bal_updates_df[field_names.START_BALANCE] = bal_updates_df[field_names.END_BALANCE].shift(1)
+        bal_updates_df[field_names.START_DATE] = bal_updates_df[field_names.END_DATE].shift(1)
         bal_updates_df = bal_updates_df.dropna()
 
         log.debug("Looping over balance updates")
-        dfs = [
+        series = [
             cls._est_daily_balances_between_updates(
                 start_date=row[field_names.START_DATE],
                 end_date=row[field_names.END_DATE],
                 start_bal=row[field_names.START_BALANCE],
                 end_bal=row[field_names.END_BALANCE],
-                bal_transfers_df=bal_transfers_df,
+                bal_transfers=bal_transfers,
             )
             for _, row in bal_updates_df.iterrows()
         ]
 
         log.debug("Adding most recent balance update")
-        dfs.append(bal_updates_df.tail(1)[[field_names.DATE, field_names.BALANCE]])
+        series.append(bal_updates.iloc[-1:])
 
         log.debug("Returning daily balance updates")
-        return pd.concat(dfs).sort_values(field_names.DATE).set_index(field_names.DATE)[field_names.BALANCE]
+        return pd.concat(series).sort_index().rename(field_names.BALANCE).rename_axis(field_names.DATE)
 
     @classmethod
     def _est_daily_history_df(cls, balance_updates: BalanceUpdates, balance_transfers: BalanceTransfers,
@@ -546,11 +528,9 @@ class MoneyFrame:
         daily_balances = cls._est_daily_balances(balance_updates, balance_transfers, account_key)
 
         log.debug("getting daily transfers")
-        bal_transfers_df = balance_transfers.get_acc_transfers(account_key=account_key)
-        bal_transfers_df = bal_transfers_df.groupby(field_names.DATE)[field_names.AMOUNT].sum()
-        daily_trans = bal_transfers_df.rename(field_names.TRANSFER)
+        bal_transfers = balance_transfers.get_acc_transfers(account_key=account_key)
 
-        daily_summary = pd.concat([daily_balances, daily_trans], axis=1).fillna(0.0)
+        daily_summary = pd.concat([daily_balances, bal_transfers], axis=1).fillna(0.0)
 
         log.debug("determining interest")
         daily_summary[field_names.INTEREST] = (

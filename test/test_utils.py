@@ -7,6 +7,20 @@ from moneytrack import *
 
 
 class TestUtils(unittest.TestCase):
+
+    def test_sparse_vector(self):
+
+        sv = SparseVector(values=[0.3, 0.5], indices=[0, 5], size=6)
+        np.testing.assert_array_equal(sv.dense(), [0.3, 0, 0, 0, 0, 0.5])
+
+        sv = SparseVector(values=[0.3, 0.5], indices=[0, 5], size=8)
+        np.testing.assert_array_equal(sv.dense(), [0.3, 0, 0, 0, 0, 0.5, 0, 0])
+
+        sv = SparseVector(values=[0.3, 0.5], indices=[0, 5], size=None)
+        np.testing.assert_array_equal(sv.dense(), [0.3, 0, 0, 0, 0, 0.5])
+
+        self.assertRaises(ValueError, SparseVector, values=[0.3, 0.5], indices=[0, 5], size=2)
+
     def test_calc_real_pos_roots(self):
         roots = calc_real_pos_roots([1, 0, 0])
         np.testing.assert_array_equal(roots, [])
