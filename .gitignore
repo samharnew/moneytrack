@@ -1,6 +1,7 @@
 # Moneytrack Adds
 *.DS_Store
 .idea
+*.pdf
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

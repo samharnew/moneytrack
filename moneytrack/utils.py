@@ -1,13 +1,85 @@
 import logging
 from enum import Enum
-from typing import Union, Iterable, TypeVar, Optional
+from typing import Union, Iterable, TypeVar, Optional, List
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
+import scipy
 from scipy.optimize import minimize_scalar
+
+from .exceptions import NoSolutionFoundError
 
 log = logging.getLogger("utils")
 
+TNumeric = TypeVar('TNumeric', int, float)
+
+class DateRanges:
+
+    @classmethod
+    def tax_year(cls, year_starting: Union[str, int]):
+        year_starting = int(year_starting)
+        return slice(datetime(year_starting, 4, 6), datetime(year_starting+1, 4, 5))
+
+    @classmethod
+    def calendar_year(cls, year: Union[str, int]):
+        year = int(year)
+        return slice(datetime(year, 1, 1), datetime(year, 12, 31))
+
+    @classmethod
+    def from_date(cls, year: Union[str, int], month: Union[str, int] = 1, day: Union[str, int] = 1):
+        return slice(datetime(year, month, day), None)
+
+
+class SparseVector:
+    """
+    A sparse representation of a 1D vector. Behind the scenes it uses a scipy.sparse.csr_matrix, but
+    this wrapper has a much simplified interface.
+    """
+
+    def __init__(self, values: Iterable[TNumeric], indices: Iterable[int], size: Optional[int] = None):
+        """
+        Create a sparse vector with values, and the indices at which they occur. All other elements
+        are zero. As an example, the vector [0, 0, 4.3, 0, 3.4, 0], could be created as:
+
+            SparseVector([4.3, 3.4], [2, 4], 6)
+
+        :param values: Iterable[TNumeric]
+            The non-zero values of the vector e.g. [4.3, 3.4]
+        :param indices: Iterable[int]
+            The indices at which the values occur e.g. [2, 4]
+        :param size: Optional[int]
+            Optionally provide the length of the array e.g. 6
+        """
+        if size is not None and np.max(indices) >= size:
+            raise ValueError("The size parameter is smaller or equal to an element of indices")
+
+        try:
+            shape = (1, size) if size is not None else None
+            self.sparse_mat = scipy.sparse.csr_matrix(
+                (values, indices, [0, len(values)]), shape=shape
+            )
+        except ValueError as e:
+            raise ValueError("Could not parse inputs values = {}, indices = {}, size = {}."
+                             "Full error: {}".format(values, indices, size, repr(e)))
+
+    def dense(self) -> np.array:
+        """
+        Obtain the dense representation of the sparse vector
+        :return: np.array
+        """
+        return self.sparse_mat.toarray()[0]
+
+    @staticmethod
+    def from_dense(self, ar: Iterable[TNumeric]) -> "SparseVector":
+        """
+        Create a sparse representation of a dense vector
+
+        :param self:
+        :param ar:
+        :return:
+        """
+        raise NotImplementedError()
 
 def calc_real_pos_roots(p: Iterable[float]):
     """
@@ -24,9 +96,6 @@ def calc_real_pos_roots(p: Iterable[float]):
     return real_pos_roots
 
 
-TNumeric = TypeVar('TNumeric', int, float)
-
-
 def create_daily_transfer_record(trans_days: Iterable[int], trans_amts: Iterable[TNumeric]) -> np.array:
     """
     Take an array of transfers, and the day on which they happened, and
@@ -35,20 +104,16 @@ def create_daily_transfer_record(trans_days: Iterable[int], trans_amts: Iterable
     trans_amts = [0.5, 1.4] becomes [0.0, 0.0, 0.5, 0.0, 0.0, 1.4]
 
     :param trans_days: array[int]
-        The day on which the transfer waa made
+        The day on which the transfer was made
     :param trans_amts: array[double]
         The amount of the transfer
     :return: daily transfer record
     """
     log.debug("creating daily transfer record using days {} and amounts {}".format(str(trans_days), str(trans_amts)))
-    max_days = np.max(trans_days)
-    ar = np.zeros(max_days + 1)
-    for amt, day in zip(trans_amts, trans_days):
-        ar[day] += amt
-    return ar
+    return SparseVector(values=trans_amts, indices=trans_days).dense()
 
 
-def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts):
+def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts, method="AUTO"):
     """
     sum amt_i * (1 + ir) ^ ndays_i = end_bal
 
@@ -62,7 +127,13 @@ def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts)
         A list of days where transfers were made too / from the account
     :param trans_amts: List[double]
         A list of amounts for transfers that were made too / from the account
+    :param method: str
+        Should the numerical or analytic method be used.
     :return: The average daily interest rate over over the period
+
+    :raises KeyError: Incorrect input was given
+    :raises NoSolutionFoundError: Cannot find a solution (an interest rate)
+
     """
 
     # Can't calculate an interest rate over zero days
@@ -74,35 +145,56 @@ def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts)
 
     trans_days_in = [0, num_days] + trans_days.tolist()
     trans_amts_in = [start_bal, -end_bal] + trans_amts.tolist()
-    log.debug("Calling create_daily_transfer_record({}, {})".format(str(trans_days_in), str(trans_amts_in)))
-    rec = create_daily_transfer_record(trans_days_in, trans_amts_in)
 
+    rec = create_daily_transfer_record(trans_days_in, trans_amts_in)
     # If every element is zero, the account has always been empty.
     if not rec.any():
         return 0.0
 
+    if (method.upper() == "AUTO" and num_days > 100.0) or method.upper() == "NUMERICAL":
+        method = "NUMERICAL"
+    elif (method.upper() == "AUTO" and num_days <= 100.0) or method.upper() == "ANALYTIC":
+        method = "ANALYTICAL"
+    else:
+        raise KeyError("Method must be in [AUTO, NUMERICAL, ANALYTICAL]. {} was given.".format(method))
+
     # Determine the average interest rate
-    if num_days > 100:
+    if method == "NUMERICAL":
         # This polynomial should only have one real positive root that we're interest in.
         # It's therefore not necessary to find all of the roots of the polynomial.
         # When the order of the polynomial becomes large, it's much faster to just solve it numerically.
         # Note that num_days > 100 hasn't really been tuned for performance.
-        result = minimize_scalar(lambda x: np.power(np.polyval(rec, x), 2.0), (0.0, 1.0, 1.1))
-        if result.success == False:
-            input_summary_str = ("start_bal = {start_bal}, end_bal = {end_bal}, num_days = {num_days}, "
-                                 + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
-            raise AssertionError("Could not find any roots: " + input_summary_str)
-        interest_rate = result.x - 1.0
-    else:
+
+        def f_target(x): return np.power(np.polyval(rec, x), 2.0)
+
+        # Try using two sets of bracketing intervals
+        try:
+            try:
+                result = minimize_scalar(f_target, bracket=(0.0, 1.0, 1.1), method="brent")
+            except ValueError:
+                result = minimize_scalar(f_target, bracket=(1.0 - 1.0e-12, 1.0, 1.1), method="brent")
+        except ValueError:
+            result = None
+
+        if result is None or not result.success:
+            debug_log = "start_bal={}, end_bal={}, num_days={}, trans_days={}, trans_amts={}".format(
+                start_bal, end_bal, num_days, trans_days, trans_amts,
+            )
+            raise NoSolutionFoundError(
+                "Could not find a numerical solution with the following inputs:\n" + debug_log
+            )
+        return result.x - 1.0
+
+    if method == "ANALYTICAL":
         real_pos_roots = calc_real_pos_roots(rec)
         if len(real_pos_roots) == 0:
-            input_summary_str = ("start_bal = {start_bal}, end_bal = {end_bal}, num_days = {num_days}, "
-                                 + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
-
-            raise AssertionError("Could not find any roots: " + input_summary_str)
-        interest_rate = real_pos_roots[0] - 1.0
-
-    return interest_rate
+            debug_log = "start_bal={}, end_bal={}, num_days={}, trans_days={}, trans_amts={}".format(
+                start_bal, end_bal, num_days, trans_days, trans_amts,
+            )
+            raise NoSolutionFoundError(
+                "Could not find any real analytic solutions with the following inputs:\n" + debug_log
+            )
+        return real_pos_roots[0] - 1.0
 
 
 def calc_daily_balances(start_bal: float, end_day: int, daily_rate: float, start_day: int = 0):
