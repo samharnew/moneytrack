@@ -1,15 +1,34 @@
 import logging
 from enum import Enum
 from typing import Union, Iterable, TypeVar, Optional, List
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import scipy
 from scipy.optimize import minimize_scalar
 
+from .exceptions import NoSolutionFoundError
+
 log = logging.getLogger("utils")
 
 TNumeric = TypeVar('TNumeric', int, float)
+
+class DateRanges:
+
+    @classmethod
+    def tax_year(cls, year_starting: Union[str, int]):
+        year_starting = int(year_starting)
+        return slice(datetime(year_starting, 4, 6), datetime(year_starting+1, 4, 5))
+
+    @classmethod
+    def calendar_year(cls, year: Union[str, int]):
+        year = int(year)
+        return slice(datetime(year, 1, 1), datetime(year, 12, 31))
+
+    @classmethod
+    def from_date(cls, year: Union[str, int], month: Union[str, int] = 1, day: Union[str, int] = 1):
+        return slice(datetime(year, month, day), None)
 
 
 class SparseVector:
@@ -111,22 +130,22 @@ def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts,
     :param method: str
         Should the numerical or analytic method be used.
     :return: The average daily interest rate over over the period
+
+    :raises KeyError: Incorrect input was given
+    :raises NoSolutionFoundError: Cannot find a solution (an interest rate)
+
     """
 
     # Can't calculate an interest rate over zero days
     if num_days == 0:
         return 0.0
 
-    log.debug("calc_avg_interest_rate(start_bal={}, end_bal={}, num_days={}, trans_days={}, trans_amts={})".format(
-        start_bal, end_bal, num_days, trans_days, trans_amts,
-    ))
-
     trans_days = np.asarray(trans_days)
     trans_amts = np.asarray(trans_amts)
 
     trans_days_in = [0, num_days] + trans_days.tolist()
     trans_amts_in = [start_bal, -end_bal] + trans_amts.tolist()
-    log.debug("Calling create_daily_transfer_record({}, {})".format(str(trans_days_in), str(trans_amts_in)))
+
     rec = create_daily_transfer_record(trans_days_in, trans_amts_in)
     # If every element is zero, the account has always been empty.
     if not rec.any():
@@ -147,26 +166,35 @@ def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts,
         # Note that num_days > 100 hasn't really been tuned for performance.
 
         def f_target(x): return np.power(np.polyval(rec, x), 2.0)
-        try:
-            result = minimize_scalar(f_target, (0.0, 1.0, 1.1))
-        except ValueError:
-            result = minimize_scalar(f_target, (1.0-1.0e-12, 1.0, 1.1))
 
-        if not result.success:
-            input_summary_str = ("start_bal = {start_bal}, end_bal = {end_bal}, num_days = {num_days}, "
-                                 + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
-            raise AssertionError("Could not find any roots: " + input_summary_str)
-        interest_rate = result.x - 1.0
+        # Try using two sets of bracketing intervals
+        try:
+            try:
+                result = minimize_scalar(f_target, bracket=(0.0, 1.0, 1.1), method="brent")
+            except ValueError:
+                result = minimize_scalar(f_target, bracket=(1.0 - 1.0e-12, 1.0, 1.1), method="brent")
+        except ValueError:
+            result = None
+
+        if result is None or not result.success:
+            debug_log = "start_bal={}, end_bal={}, num_days={}, trans_days={}, trans_amts={}".format(
+                start_bal, end_bal, num_days, trans_days, trans_amts,
+            )
+            raise NoSolutionFoundError(
+                "Could not find a numerical solution with the following inputs:\n" + debug_log
+            )
+        return result.x - 1.0
+
     if method == "ANALYTICAL":
         real_pos_roots = calc_real_pos_roots(rec)
         if len(real_pos_roots) == 0:
-            input_summary_str = ("start_bal = {start_bal}, end_bal = {end_bal}, num_days = {num_days}, "
-                                 + "trans_days = {trans_days}, trans_amts = {trans_amts}").format(**locals())
-
-            raise AssertionError("Could not find any roots: " + input_summary_str)
-        interest_rate = real_pos_roots[0] - 1.0
-
-    return interest_rate
+            debug_log = "start_bal={}, end_bal={}, num_days={}, trans_days={}, trans_amts={}".format(
+                start_bal, end_bal, num_days, trans_days, trans_amts,
+            )
+            raise NoSolutionFoundError(
+                "Could not find any real analytic solutions with the following inputs:\n" + debug_log
+            )
+        return real_pos_roots[0] - 1.0
 
 
 def calc_daily_balances(start_bal: float, end_day: int, daily_rate: float, start_day: int = 0):

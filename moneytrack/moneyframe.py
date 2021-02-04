@@ -10,6 +10,7 @@ from .config import Config
 from .datasets import BalanceUpdates, BalanceTransfers
 from .utils import coalesce, assert_type, adr_to_ayr, calc_avg_interest_rate, calc_daily_balances_w_transfers, \
     dates_between, ayr_to_adr
+from .exceptions import BalanceExtrapolationError, NoSolutionFoundError
 
 import moneytrack as mt
 
@@ -361,13 +362,18 @@ class MoneyFrame:
         """
         assert_type(balance_updates, BalanceUpdates)
         assert_type(balance_transfers, BalanceTransfers)
+        try:
+            df = cls._est_daily_history_df(balance_updates, balance_transfers, account_key)
+        except BalanceExtrapolationError as e:
+            raise BalanceExtrapolationError(
+                "Could not estimate daily account balances for account key '{}'.".format(account_key)
+            ) from e
 
-        df = cls._est_daily_history_df(balance_updates, balance_transfers, account_key)
         return MoneyFrame(df)
 
     @classmethod
     def _est_daily_balances_between_updates(cls, start_date: datetime, end_date: datetime, start_bal: float,
-                                            end_bal: float, bal_transfers: pd.Series) -> pd.Series:
+                                            end_bal: float, transfers: pd.Series) -> pd.Series:
         """
         Estimate the daily balances between two balance updates, assuming a fixed rate of interest over the period.
 
@@ -379,7 +385,7 @@ class MoneyFrame:
             The balance at the first update (at the end of the day, *after* any balance transfers)
         :param end_bal:
             The balance at the second update (at the end of the day, *after* any balance transfers)
-        :param bal_transfers:
+        :param transfers:
             Series containing balance transfers to and from this account. Should be indexed by transfer date
         :return: pd.Series
             Estimated balance in the account each day during the period [start_date, end_date).
@@ -401,25 +407,31 @@ class MoneyFrame:
         log.debug("Updates from {} : {} -> {} : {}".format(start_date, start_bal, end_date, end_bal))
 
         # Get all the transfers from/to the account that happened between the period
-        transfers = bal_transfers[(bal_transfers.index > start_date) & (bal_transfers.index <= end_date)]
-        trans_days = (transfers.index - start_date).days
+        transfers = transfers[(transfers.index > start_date) & (transfers.index <= end_date)]
+        transfer_days = (transfers.index - start_date).days
+        transfer_amts = transfers.values
         num_days = (end_date - start_date).days
-        trans_amts = transfers.values
 
         # Estimate the interest rate during the period
-        log.debug("Calculating daily interest rate")
-        daily_rate = calc_avg_interest_rate(
-            start_bal=start_bal, end_bal=end_bal, num_days=num_days, trans_days=trans_days, trans_amts=trans_amts
-        )
+        try:
+            daily_rate = calc_avg_interest_rate(
+                start_bal=start_bal, end_bal=end_bal, num_days=num_days, trans_days=transfer_days,
+                trans_amts=transfer_amts
+            )
+        except NoSolutionFoundError as e:
+            debug_str = "Trying to extrapolate balances between dates {} and {}.\n".format(start_date, end_date)
+            debug_str += "The start and end balances are {} and {}.\n".format(start_bal, end_bal)
+            debug_str += "Between these dates the following transfers were made:\n{}\n".format(transfers)
+            raise BalanceExtrapolationError(debug_str) from e
 
         # Use the interest rate to estimate account balances on each day
-        log.debug("Daily interest rate is {}".format(daily_rate))
         balances = calc_daily_balances_w_transfers(
-            start_bal=start_bal, num_days=num_days, daily_rate=daily_rate, trans_amts=trans_amts, trans_days=trans_days
+            start_bal=start_bal, num_days=num_days, daily_rate=daily_rate,
+            trans_amts=transfer_amts, trans_days=transfer_days
         )
 
         dates = dates_between(start_date, end_date)[:-1]
-        return pd.Series(data=balances, index=dates, name=field_names.BALANCE)
+        return pd.Series(data=balances, index=dates)
 
     @classmethod
     def _est_daily_balances(cls, balance_updates: BalanceUpdates, balance_transfers: BalanceTransfers,
@@ -494,7 +506,7 @@ class MoneyFrame:
                 end_date=row[field_names.END_DATE],
                 start_bal=row[field_names.START_BALANCE],
                 end_bal=row[field_names.END_BALANCE],
-                bal_transfers=bal_transfers,
+                transfers=bal_transfers,
             )
             for _, row in bal_updates_df.iterrows()
         ]
@@ -640,7 +652,6 @@ class MoneyFrame:
             else:
                 start_date = pd.to_datetime(coalesce(x.start, self.min_date()))
                 end_date = pd.to_datetime(coalesce(x.stop, self.max_date()))
-                assert start_date <= end_date, "Must have start_date <= end_date"
                 return self.get_slice(start_date, end_date, extrapolate=False)
         elif isinstance(x, int):
             if x == -1:
