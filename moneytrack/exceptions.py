@@ -4,5 +4,7 @@ class BalanceExtrapolationError(Exception):
     extrapolated between two dates"""
     pass
 
+
 class NoSolutionFoundError(Exception):
+    """If a solution cannot be found to a equation / optimization problem"""
     pass
