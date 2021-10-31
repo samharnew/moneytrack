@@ -1,15 +1,22 @@
 from typing import Dict, List
-from dataclasses import dataclass
 import pandas as pd
 from .utils import ayr_to_adr
 
 
-@dataclass
 class AccountSimulatorStep:
+
+    # Would prefer to do this with a dataclass, but want to make it backwards
+    # compatible with python 3.6
     balance: float
     date: pd.datetime
-    transfers: float = 0.0
-    interest: float = 0.0
+    transfers: float
+    interest: float
+
+    def __init__(self, balance: float, date: pd.datetime, transfers: float = 0.0, interest: float = 0.0):
+        self.balance = balance
+        self.date = date
+        self.transfers = transfers
+        self.interest = interest
 
 
 class AccountSimulator:
