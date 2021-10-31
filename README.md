@@ -2,11 +2,13 @@
 
 Moneytrack is a python package that helps you track and monitor 
 your personal finances.
-As a user you provide updates of account balances over time
-(as frequently or infrequently as you wish). 
-You must also record any balance transfers between accounts. 
-This information is processed to infer daily interest payments
-per account, which can then be aggregated over different time periods
+All you need to provide is:
+
+- Updates of account balances over time. These can be as frequently or infrequently as you wish. 
+- Balance transfers between accounts. 
+
+This information is processed to infer the daily balance + interest payments
+per account, that can be aggregated over different time periods
 and/or account types. For example, you may wish to see your average
 rate of interest over your entire portfolio for a given year.
 
@@ -21,38 +23,59 @@ pip install moneytrack
 
 ## Datasets
 
-Moneytrack relies on three datasets that must be updated by the user.
+Moneytrack relies on three datasets that are updated by the user.
 These can be stored in separate csv files, or alternatively as
 an Excel workbook with multiple sheets. 
-Example data can be found in `moneytrack/sample_data`.
+Example data can be found in `moneytrack/sample_data`. 
+To generate a set of empty csv files with the correct headers, run the following:
+
+```python
+import moneytrack as mt
+mt.create_csv_template("moneytrack_data_dir/")
+```
+
+or alternatively an empty Excel workbook using:
+
+```python
+import moneytrack as mt
+mt.create_excel_template("moneytrack_data/data.xlsx")
+```
+
 A brief description of each dataset follows:
 
 #### Balance Updates 
 
-This dataset is used to checkpoint account balances - the difference 
-between checkpoints can be used to determine interest payments.
+This dataset is used to checkpoint account balances e.g. on 1st Dec, 
+my Santander savings account had a balance of £200.
+These checkpoints can be used to infer the (average) interest payments
+each day. The balance provided for any day is assumed
+to be the closing balance at the end of the day *after*
+any interest payments and transfers into / out of the account.
 
 #### Balance Transfers
 
-This dataset is used to record transfers between different accounts. 
-If a transfer and and balance update are made on the same day, it is
+This dataset is used to record transfers between different accounts e.g.
+on 12th Dec, I transferred £50 from my Santander savings account to
+my HSBC regular saver.
+If a transfer and a balance update are made on the same day, it is
 assumed that the update is *after* the transfer. 
 
 #### Accounts
 
-This dataset records all accounts that are tracked 
+The final dataset lists all accounts that are tracked 
 in MoneyTrack. 
 You must give each account a unique key that is used
-in the Balance Updates / Balance Transfers data.
-Here you can also give your accounts any number of properties 
-e.g. you could add a boolean IS_ISA column,
-which would allow you to determine your overall
+in the Balance Updates / Balance Transfers datasets.
+Here you can also store details about your accounts 
+e.g. you could add a boolean IS_ISA column.
+These addtional details can later be used for filtering and
+grouping the data e.g. if you wanted to determine your overall
 interest payments from ISA/non-ISA accounts. 
 
 ## Tutorial
 
 Once you have installed moneytrack and populated
-your datasets (as described above). You are ready
+your datasets (as described above), you are ready
 to get started.
 
 The best way to use moneytrack is from a Jupyter notebook.
