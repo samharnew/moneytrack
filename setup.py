@@ -21,6 +21,7 @@ setup(
         "pandas>=0.25.3",
         "matplotlib>=3.0.0",
         "xlrd==1.2.0",
+        "openpyxl",
     ],
     # metadata to display on PyPI
     author="Sam Harnew",

@@ -104,8 +104,20 @@ class DataSource:
             raise NotImplementedError("Any subclass of DataSource must implement a self.df member")
         return self.df
 
-    def to_csv(self, path):
+    def to_csv(self, path: str):
         self.get_df().to_csv(path, index=False)
+
+    def to_excel(self, path: Union[str, pd.ExcelWriter], sheet: Optional[str] = None):
+        self.get_df().to_excel(path, sheet_name=sheet, index=False)
+
+    @classmethod
+    def create_empty(cls):
+        col_names = [
+            col_name
+            for col_name, dtype in cls.get_field_dtypes().items()
+        ]
+        df = pd.DataFrame(columns=col_names)
+        return cls(df)
 
     @classmethod
     def get_dtypes_pandas(cls: "DataSource") -> Dict[str, Type]:
@@ -337,7 +349,7 @@ class BalanceTransfers(DataSource):
         DataField(name=field_names.DATE, dtype=DataField.DATE_TYPE, mandatory=True),
         DataField(name=field_names.AMOUNT, dtype=float, mandatory=True),
         DataField(name=field_names.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
-        DataField(name=field_names.FROM_ACCOUNT_KEY, dtype=str, mandatory=True),
+        DataField(name=field_names.TO_ACCOUNT_KEY, dtype=str, mandatory=True),
         DataField(name=field_names.DESCRIPTION, dtype=str, mandatory=False),
     ]
 
@@ -393,3 +405,23 @@ class BalanceTransfers(DataSource):
         series.sort_index(inplace=True)
         series.rename(field_names.TRANSFER, inplace=True)
         return series
+
+
+def create_csv_template(directory: str):
+    accounts = Accounts.create_empty()
+    updates = BalanceUpdates.create_empty()
+    transfers = BalanceTransfers.create_empty()
+    accounts.to_csv(os.path.join(directory, "accounts.csv"))
+    updates.to_csv(os.path.join(directory, "balance_updates.csv"))
+    transfers.to_csv(os.path.join(directory, "balance_transfers.csv"))
+
+
+def create_excel_template(path: str):
+    accounts = Accounts.create_empty()
+    updates = BalanceUpdates.create_empty()
+    transfers = BalanceTransfers.create_empty()
+
+    with pd.ExcelWriter(path) as writer:
+        accounts.to_excel(writer, "accounts")
+        updates.to_excel(writer, "balance_updates")
+        transfers.to_excel(writer, "balance_transfers")

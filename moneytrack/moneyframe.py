@@ -404,8 +404,6 @@ class MoneyFrame:
         if pd.isna(start_date) or pd.isna(end_date):
             raise ValueError("Invalid start/end dates have been passed: {} - {}".format(str(start_date), str(end_date)))
 
-        log.debug("Updates from {} : {} -> {} : {}".format(start_date, start_bal, end_date, end_bal))
-
         # Get all the transfers from/to the account that happened between the period
         transfers = transfers[(transfers.index > start_date) & (transfers.index <= end_date)]
         transfer_days = (transfers.index - start_date).days
