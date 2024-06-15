@@ -208,12 +208,14 @@ class MoneyFrame:
     def get_cumulative_interest_rate(self, **kwargs) -> pd.Series:
         return self.to_df(inc_cum_interest_rate=True, **kwargs)[field_names.CUM_INTEREST_RATE]
 
-    def get_metric(self, name, **kwargs) -> pd.Series:
-        if name == field_names.BALANCE: return self.get_daily_balance(**kwargs)
-        if name == field_names.TRANSFER: return self.get_daily_transfers(**kwargs)
-        if name == field_names.INTEREST_RATE: return self.get_daily_interest_rate(**kwargs)
-        if name == field_names.CUM_INTEREST_RATE: return self.get_cumulative_interest_rate(**kwargs)
-        if name == field_names.INTEREST: return self.get_daily_interest(**kwargs)
+    def get_metric(self, name: str, **kwargs) -> pd.Series:
+        return {
+            field_names.BALANCE: self.get_daily_balance,
+            field_names.TRANSFER: self.get_daily_transfers,
+            field_names.INTEREST_RATE: self.get_daily_interest_rate,
+            field_names.CUM_INTEREST_RATE: self.get_cumulative_interest_rate,
+            field_names.INTEREST: self.get_daily_interest,
+        }[name](**kwargs)
 
     @classmethod
     def _interest_rate_conversions(cls, adr: np.array, as_ayr: bool = True, as_prcnt: bool = True) -> np.array:
