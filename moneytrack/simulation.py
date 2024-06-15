@@ -8,11 +8,11 @@ class AccountSimulatorStep:
     # Would prefer to do this with a dataclass, but want to make it backwards
     # compatible with python 3.6
     balance: float
-    date: pd.datetime
+    date: pd.Timestamp
     transfers: float
     interest: float
 
-    def __init__(self, balance: float, date: pd.datetime, transfers: float = 0.0, interest: float = 0.0):
+    def __init__(self, balance: float, date: pd.Timestamp, transfers: float = 0.0, interest: float = 0.0):
         self.balance = balance
         self.date = date
         self.transfers = transfers
@@ -21,7 +21,7 @@ class AccountSimulatorStep:
 
 class AccountSimulator:
 
-    def __init__(self, date: pd.datetime, balance: float = 0, metadata: Dict[str, str] = None):
+    def __init__(self, date: pd.Timestamp, balance: float = 0, metadata: Dict[str, str] = None):
         self.balance = balance
         self.metadata = metadata if metadata is not None else dict()
         self.simulation_steps = [
@@ -55,7 +55,7 @@ class AccountSimulator:
 
 class AccountSimulatorFixedRate(AccountSimulator):
 
-    def __init__(self, date: pd.datetime, ayr: float, balance: float = 0, metadata: Dict[str, str] = None):
+    def __init__(self, date: pd.Timestamp, ayr: float, balance: float = 0, metadata: Dict[str, str] = None):
         super().__init__(date, balance, metadata)
         self.ayr = ayr
 
