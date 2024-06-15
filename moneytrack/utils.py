@@ -167,14 +167,23 @@ def calc_avg_interest_rate(start_bal, end_bal, num_days, trans_days, trans_amts,
 
         def f_target(x): return np.power(np.polyval(rec, x), 2.0)
 
-        # Try using two sets of bracketing intervals
-        try:
+        # Try using a few sets of bracketing intervals
+        bracketing_intervals = [
+            (0.0, 1.0, 1.1),
+            (1.0 - 1.0e-1, 1.0, 1.1),
+            (1.0 - 1.0e-3, 1.0, 1.1),
+            (1.0 - 1.0e-6, 1.0, 1.1),
+            (1.0 - 1.0e-12, 1.0, 1.1),
+        ]
+
+        result = None
+        for bracket in bracketing_intervals:
             try:
-                result = minimize_scalar(f_target, bracket=(0.0, 1.0, 1.1), method="brent")
+                result = minimize_scalar(f_target, bracket=bracket, method="brent")
             except ValueError:
-                result = minimize_scalar(f_target, bracket=(1.0 - 1.0e-12, 1.0, 1.1), method="brent")
-        except ValueError:
-            result = None
+                pass
+            if result is not None and result.success:
+                break
 
         if result is None or not result.success:
             debug_log = "start_bal={}, end_bal={}, num_days={}, trans_days={}, trans_amts={}".format(

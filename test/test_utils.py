@@ -71,6 +71,16 @@ class TestUtils(unittest.TestCase):
                                method="NUMERICAL")
         self.assertAlmostEqual(rate_der, rate_der, 7)
 
+    def test_calc_avg_interest_rate_edge_case_4(self):
+        calc_avg_interest_rate(
+            start_bal=2414.3066483948005,
+            end_bal=567.8103655272569,
+            num_days=164,
+            trans_days=[35, 46, 105, 141, 163],
+            trans_amts=[-104.21, -550., -100., -400., -74.89],
+            method="NUMERICAL",
+        )
+
     def test_calc_daily_balances(self):
         r = 1.01
         daily_bals = calc_daily_balances(100.0, 5, r - 1.0)
