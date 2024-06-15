@@ -41,7 +41,7 @@ class TestMoneyFrame(unittest.TestCase):
     def test_from_fixed_rate(self):
         dah = MoneyFrame.from_fixed_rate(days=5, start_bal=100.0, ayr_prcnt=5.0)
         self.assertTrue(len(dah) == 5)
-        self.assertTrue(dah.max_date() == datetime.today().date())
+        self.assertTrue(dah.max_date().date() == datetime.today().date())
 
         dah = MoneyFrame.from_fixed_rate(days=("2020-01-01", "2020-01-05"), start_bal=100.0, ayr_prcnt=5.0)
         self.assertTrue(len(dah) == 5)
